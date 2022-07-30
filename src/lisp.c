@@ -1,11 +1,11 @@
-/* minilisp.c with NaN boxing by Robert A. van Engelen 2022 BSD-3 license
+/* lisp.c with NaN boxing by Robert A. van Engelen 2022 BSD-3 license
    - double floating point, atoms, strings, lists, closures, macros
    - 41 built-in Lisp primitives
    - lexically-scoped locals in lambda, let, let*, letrec, letrec*
    - exceptions and error handling with safe return to REPL after an error
    - execution tracing to display Lisp evaluation steps
-   - REPL with readline (compile: minilisp.c -DHAVE_READLINE_H -lreadline)
-   - break execution with CTRL-C (compile: minilisp.c -DHAVE_SIGNAL_H)
+   - REPL with readline (compile: lisp.c -DHAVE_READLINE_H -lreadline)
+   - break execution with CTRL-C (compile: lisp.c -DHAVE_SIGNAL_H)
    - mark-sweep garbage collector to recycle unused cons pair cells
    - compacting garbage collector to recycle unused atoms and strings
    - Lisp memory is a single cell[] array, no malloc()-free() calls */
@@ -972,7 +972,6 @@ void print(L x) {
 /* entry point with Lisp initialization, error handling and REPL */
 int main() {
   I i;
-  printf("minilisp");
   input("init.lisp");
   out = stdout;
   if (setjmp(jb))
