@@ -20,6 +20,8 @@ A quick glance at the Lisp interpreter's features:
 - mark-sweep garbage collector to recycle unused cons pair cells
 - compacting garbage collector to recycle unused atoms and strings
 - Lisp memory is a single `cell[]` array, no `malloc()`-`free()` calls
+- easily customizable and extendable to add new special features
+- integrates with C and C++ code by calling C functions for Lisp primitives, e.g. for embedding a Lisp interpreter
 
 ## Compilation
 
