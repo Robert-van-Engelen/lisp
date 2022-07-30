@@ -2,7 +2,7 @@
 
 This project is a continuation of the [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) project _"Lisp in 99 lines of C and how to write one yourself."_  If you're interested in writing a Lisp interpreter of your own, then you may want to check out the [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) project first.  If you already did, then welcome back!
 
-_Spoiler alert: do not read the C code if you want to give [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) a try and implement some of these features yourself._
+_Spoiler alert: do not read the C code of this project if you want to give [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) a try first to implement some of these features yourself._
 
 I've documented this project's C source code more extensively to explain the inner workings of the interpreter.
 
