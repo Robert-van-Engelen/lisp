@@ -1,4 +1,4 @@
-# Lisp interpreter
+# Lisp interpreter project source code
 
 The Lisp interpreter source code: [lisp.c](lisp.c)
 
