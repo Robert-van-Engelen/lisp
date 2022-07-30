@@ -4,7 +4,7 @@ This project is a continuation of the [tinylisp](https://github.com/Robert-van-E
 
 _Spoiler alert: do not read the C code if you want to give [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) a try and implement some of these features yourself._
 
-I've documented the C source code with lots of comments to explain the inner workings of the Lisp interpreter.
+I've documented the C source code extensively to explain the inner workings of the Lisp interpreter.
 
 This project introduces a Lisp interpreter with modern features, including a [tracing garbage collector](https://en.wikipedia.org/wiki/Tracing_garbage_collection) to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple mark-sweep method, because it is fairly easy to understand.  By contrast, a copying garbage collector uses double the memory, but has the advantage of being free of recursion and can be interrupted.  However, we can implement mark-sweep with pointer reversal to eliminate recursive calls entirely.  Either way, it is fairly easy to replace the garbage collector.  In addition to mark-sweep, a compacting garbage collector is used to remove unused atoms and strings from the heap.
 
@@ -22,6 +22,8 @@ A quick glance at the Lisp interpreter's features:
 - Lisp memory is a single `cell[]` array, no `malloc()`-`free()` calls
 
 ## Compilation
+
+Just one source code file [lisp.c](src/lisp.c) to compile:
 
     cc -o lisp lisp.c -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
 
@@ -90,9 +92,13 @@ The prompt displays the number of free cons pair cells + free stack cells availa
     (write x1 x2 ... xk)
     (string x1 x2 ... xk)
     (load <name>)
-    (trace 0)
+    (trace <0|1|2>)
     (catch <expr>)
-    (throw n)
-    (begin x1 x2 ... xk
+    (throw <number>)
+    (begin x1 x2 ... xk)
     (while x y1 y2 ... yk)
     (quit)
+
+## More?
+
+Yes, there will be more to come soon.  Stay tuned.
