@@ -73,11 +73,11 @@ Returns a value between 0 and 9 to identify the type of `<expr>`.
 
     (eval <quoted-expr>)
 
-Evaluates `<uoted-expr>` and returns its value.  For example, `(eval '(+ 1 2))` is 3.
+Evaluates `<quoted-expr>` and returns its value.  For example, `(eval '(+ 1 2))` is 3.
 
     (quote <expr>)
 
-Protects `<expr>` from evaluation, same as `'<expr>`.  For example, `'(1 () foo (bar 7))` is a list, not a function application.
+Protects `<expr>` from evaluation by quoting, same as `'<expr>`.  For example, `'(1 () foo (bar 7))` is a list containing unevaluated expressions protected by the quote.
 
     (cons x y)
 
