@@ -25,17 +25,17 @@ I've documented this project's C source code extensively to explain the inner wo
 
 Just one source code file [lisp.c](src/lisp.c) to compile:
 
-    cc -o lisp lisp.c -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
+    $ cc -o lisp lisp.c -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
 
-Without CTRL-C to break execution and without the [GNU readline](https://en.wikipedia.org/wiki/GNU_Readline) library:
+Without enabling CTRL-C to break execution and without the [GNU readline](https://en.wikipedia.org/wiki/GNU_Readline) library:
 
-    cc -o lisp lisp.c
+    $ cc -o lisp lisp.c
 
 ## Running Lisp
 
 Initialization imports `init.lisp` first, when located in the working directory.  Otherwise this step is skipped.  You can load Lisp source files with `(load "name.lisp")`, for example
 
-    bash# ./lisp
+    $ ./lisp
     ...
     defun
     6552+1933>(load "nqueens.lisp")
@@ -92,7 +92,7 @@ Returns the second part `y` of a pair `(x . y)`.
     (* n1 n2 ... nk)
     (/ n1 n2 ... nk)
 
-Add, substract, multiply and divide `n1` to `nk`.  Note that `(- 2)` is 2, not -2, and `(/ 2)` is 2, not 0.5.
+Add, substract, multiply and divide `n1` to `nk`.  Subtraction and division with only one value are treated as special cases such that `(- 2)` is -2 and `(/ 2)` is 0.5.
  
     (int n)
 
@@ -108,11 +108,11 @@ Returns `#t` (true) if values `x` and `y` are identical.  Otherwise, returns `()
 
     (or x1 x2 ... xk)
 
-Returns `#t` if any of the `x` is not `()`.  Otherwise, returns `()` (empty list means false).
+Returns `#t` if any of the `x` is not `()`.  Otherwise, returns `()` (empty list means false).  Only evaluates the `x`s until the first is not `()`, i.e. the `or` is conditional.
 
     (and x1 x2 ... xk)
 
-Returns `#t` if all of the `x` are not `()`.  Otherwise, returns `()` (empty list means false).
+Returns `#t` if all of the `x` are not `()`.  Otherwise, returns `()` (empty list means false).  Only evaluates the `x`s until the first is `()`, i.e. the `and` is conditional.
 
     (not x)
 
@@ -149,12 +149,12 @@ Returns the current environment.  When executed in the REPL, returns the global 
     (let (v1 x1) (v2 x2) ... (vk xk) y)
     (let* (v1 x1) (v2 x2) ... (vk xk) y)
 
-Evaluates `y` with a local scope of bindings for symbols `v` bound to the values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list.
+Evaluates `y` with a local scope of bindings for symbols `v` bound to the values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list, but allow multiple `y` (you can use `begin` instead).
 
     (letrec (v1 x1) (v2 x2) ... (vk xk) y)
     (letrec* (v1 x1) (v2 x2) ... (vk xk) y)
 
-Evaluates `y` with a local scope of recursive bindings for symbols `v` bound to the values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list.
+Evaluates `y` with a local scope of recursive bindings for symbols `v` bound to the values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list, but allow multiple `y` (you can use `begin` instead).
 
     (setq <symbol> x)
 
@@ -179,7 +179,7 @@ Prints the expressions.  Strings are not quoted.
 
     (string x1 x2 ... xk)
 
-Returns a string concatenation of symbols, strings and numbers.  Lists as `x` may contain character codes that are converted to a string.
+Returns a string concatenation of symbols, strings and numbers.  Lists may contain 8-bit character codes (ASCII/UTF-8) that are converted to a string.
 
     (load <name>)
 
@@ -191,7 +191,7 @@ Disables tracing (0), enables tracing (1) and enables tracing with ENTER press (
 
     (catch <expr>)
 
-Catch exceptions in the evaluation of an expression, returns the value of the expression or `(ERR . n)` for error `n`.
+Catch exceptions in the evaluation of an expression, returns the value of the expression or `(ERR . n)` for positive error code `n`.
 
     (throw n)
 
@@ -203,7 +203,7 @@ Sequentially evaluates expressions, returns the value of the last expression.
 
     (while x y1 y2 ... yk)
 
-While `x` is not `()` (meaning true), evaluates expressions `y`.  Returns the last value of `y` or `()` when the loop never ran.
+While `x` is not `()` (meaning true), evaluates expressions `y`.  Returns the last value of `yk` or `()` when the loop never ran.
 
     (quit)
 

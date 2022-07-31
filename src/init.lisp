@@ -20,7 +20,6 @@
                 (pair? y)
                 (equal? (car x) (car y))
                 (equal? (cdr x) (cdr y))))))
-(define negate (lambda (n) (- 0 n)))
 (define > (lambda (x y) (< y x)))
 (define <= (lambda (x y) (not (< y x))))
 (define >= (lambda (x y) (not (< x y))))
@@ -92,7 +91,7 @@
                 (if (< x y)
                     x
                     y))
-            9.999999999e99
+            inf
             args)))
 (define max
     (lambda args
@@ -100,7 +99,7 @@
             (if (< x y)
                 y
                 x))
-        -9.999999999e99
+        -inf
         args)))
 (define filter
     (lambda (f t)

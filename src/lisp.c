@@ -222,7 +222,7 @@ I gc() {
   I i;
   BREAK_OFF;                                    /* do not interrupt GC */
   memset(used, 0, sizeof(used));                /* clear all used[] bits */
-  mark(ord(env));                               /* mark all globally-used cons cell pairs in the env list */
+  mark(ord(env));                               /* mark all globally-used cons cell pairs referenced from env list */
   for (i = sp; i < N; ++i)
     if ((T(cell[i]) & ~(CONS^MACR)) == CONS)
       mark(ord(cell[i]));                       /* mark all cons cell pairs referenced from the stack */
@@ -497,7 +497,7 @@ L parse() {
 /* the file we are writing to, stdout by default */
 FILE *out;
 
-/* construct a list of evaluated expressions in list t, i.e. the arguments passed to a function or primitive */
+/* construct a new list of evaluated expressions in list t, i.e. the arguments passed to a function or primitive */
 L eval(L, L);
 L evlis(L t, L e) {
   L *p = push(nil);                             /* push the new list to protect it from getting GC'ed */
@@ -505,9 +505,9 @@ L evlis(L t, L e) {
     *p = cons(eval(car(t), e), nil);            /* evaluate it and add it to the end of the list replacing last nil */
     p = &cell[ord(*p)+1];                       /* p points to the cdr nil to replace it with the rest of the list */
   }
-  if (T(t) != NIL)                              /* if list t does not end in nil */
+  if (T(t) != NIL)                              /* if the list t does not end in nil */
     *p = eval(t, e);                            /* evaluate t to replace the last nil at the end of the new list */
-  return pop();                                 /* pop list and return it */
+  return pop();                                 /* pop new list and return it */
 }
 
 L f_type(L t, L e) {
@@ -543,7 +543,7 @@ L f_add(L t, L e) {
 }
 
 L f_sub(L t, L e) {
-  L n = car(t = evlis(t, e));
+  L n = not(cdr(t)) ? -eval(car(t), e) : car(t = evlis(t, e));
   while (!not(t = cdr(t)))
     n -= car(t);
   return num(n);
@@ -557,7 +557,7 @@ L f_mul(L t, L e) {
 }
 
 L f_div(L t, L e) {
-  L n = car(t = evlis(t, e));
+  L n = not(cdr(t)) ? 1./eval(car(t), e) : car(t = evlis(t, e));
   while (!not(t = cdr(t)))
     n /= car(t);
   return num(n);
@@ -734,7 +734,7 @@ L f_string(L t, L e) {
       for (; T(x) == CONS; x = cdr(x))
         *(A+i++) = car(x);
     else if (T(x) != PRIM && (T(x) & ~(CONS^MACR)) != CONS && T(x) != NIL)
-      snprintf(buf, sizeof(buf), FLOAT, x), i += strlen(strcpy(A+i, buf));
+      i += snprintf(A+i, sizeof(buf), FLOAT, x);
   }
   *(A+i) = 0;
   return box(STRG, j);
