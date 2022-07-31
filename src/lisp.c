@@ -65,8 +65,8 @@ void using_history() { }
 /* T(x) returns the tag bits of a NaN-boxed Lisp expression x */
 #define T(x) (*(uint64_t*)&x >> 48)
 
-/* atom, string, primitive, cons, closure, macro and nil tags for NaN boxing */
-I ATOM = 0x7ff8, STRG = 0x7ff9, PRIM = 0x7ffa, CONS = 0x7ffc, CLOS = 0x7ffe, MACR = 0x7fff, NIL = 0xffff;
+/* primitive, atom, string, cons, closure, macro and nil tags for NaN boxing (reserve 0x7ff8 for nan) */
+I PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe, MACR = 0x7fff, NIL = 0xffff;
 
 /* box(t,i): returns a new NaN-boxed double with tag t and ordinal i
    ord(x):   returns the ordinal of the NaN-boxed double x
@@ -949,12 +949,12 @@ void printlist(L t) {
 void print(L x) {
   if (T(x) == NIL)
     fprintf(out, "()");
+  else if (T(x) == PRIM)
+    fprintf(out, "<%s>", prim[ord(x)].s);
   else if (T(x) == ATOM)
     fprintf(out, "%s", A+ord(x));
   else if (T(x) == STRG)
     fprintf(out, "\"%s\"", A+ord(x));
-  else if (T(x) == PRIM)
-    fprintf(out, "<%s>", prim[ord(x)].s);
   else if (T(x) == CONS)
     printlist(x);
   else if (T(x) == CLOS)
