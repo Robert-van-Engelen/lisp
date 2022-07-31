@@ -422,17 +422,17 @@ s:while (seeing(' '))                           /* skip white space */
     goto s;
   }
   if (seeing('(') || seeing(')') || seeing('\'')) {
-    buf[i++] = get();                           /* ( ) ' are one-character tokens */
+    buf[i++] = get();                           /* ( ) ' are single-character tokens */
   }
   else if (seeing('"')) {                       /* tokenize a quoted string */
     do {
       buf[i++] = get();
-      if (seeing('\\') && i < sizeof(buf)-1) {  /* replace \x with an escape or x itself */
-        static const char *abtnvfr = "abtnvfr";
+      while (seeing('\\') && i < sizeof(buf)-1) {
+        static const char *abtnvfr = "abtnvfr"; /* \a, \b, \t, \n, \v, \f, \r escape codes */
         const char *esc;
         get();
-        esc = strchr(abtnvfr, see);             /* \a, \b, \t, \n, \v, \f, \r escape codes */
-        buf[i++] = esc ? esc-abtnvfr+7 : see;
+        esc = strchr(abtnvfr, see);             
+        buf[i++] = esc ? esc-abtnvfr+7 : see;   /* replace \x with an escaped code or x itself */
         get();
       }
     }
@@ -972,22 +972,22 @@ void print(L x) {
 /* entry point with Lisp initialization, error handling and REPL */
 int main() {
   I i;
-  input("init.lisp");
+  input("init.lisp");                           /* set input source to load when available */
   out = stdout;
-  if (setjmp(jb))
+  if (setjmp(jb))                               /* if something goes wrong before REPL, it is fatal */
     abort();
-  sweep();
-  nil = box(NIL, 0);
-  tru = atom("#t");
-  env = pair(tru, tru, nil);
-  for (i = 0; prim[i].s; ++i)
+  sweep();                                      /* clear the pool and heap */
+  nil = box(NIL, 0);                            /* set the constant nil (empty list) */
+  tru = atom("#t");                             /* set the constant #t */
+  env = pair(tru, tru, nil);                    /* create environment with symbolic constant #t */
+  for (i = 0; prim[i].s; ++i)                   /* expand environment with primitives */
     env = pair(atom(prim[i].s), box(PRIM, i), env);
   using_history();
-  BREAK_ON;
-  i = setjmp(jb);
+  BREAK_ON;                                     /* enable CTRL-C break to throw error 2 */
+  i = setjmp(jb);                               /* init error handler: i is nonzero when thrown */
   if (i)
     printf("ERR %u %s", i, errors[i <= ERRORS ? i : 0]);
-  while (1) {
+  while (1) {                                   /* read-evel-print loop */
     putchar('\n');
     unwind(N);
     i = gc();
