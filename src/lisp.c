@@ -157,12 +157,12 @@ L cell[N];
 /* Lisp constant expressions () (nil) and #t, and the global environment env */
 L nil, tru, env;
 
-/* bit vector corresponding to the pairs of cells in the pool to mark 'used' (car and cdr cells are marked together) */
+/* bit vector corresponding to the pairs of cells in the pool marked 'used' (car and cdr cells are marked together) */
 uint32_t used[(P+63)/64];
 
 /* mark-sweep garbage collector recycles cons pair pool cells, finds and marks cells that are used */
 void mark(I i) {
-  while (!(used[i/64] & 1 << i/2%32)) {         /* if i'th cell pair is not used in the pool */
+  while (!(used[i/64] & 1 << i/2%32)) {         /* while i'th cell pair is not used in the pool */
     used[i/64] |= 1 << i/2%32;                  /* mark i'th cell pair as used */
     if ((T(cell[i]) & ~(CONS^MACR)) == CONS)    /* recursively mark car cell[i] if car refers to a cons pair */
       mark(ord(cell[i]));
@@ -543,7 +543,7 @@ L f_add(L t, L e) {
 }
 
 L f_sub(L t, L e) {
-  L n = not(cdr(t)) ? -eval(car(t), e) : car(t = evlis(t, e));
+  L n = not(cdr(t = evlis(t, e))) ? -car(t) : car(t);
   while (!not(t = cdr(t)))
     n -= car(t);
   return num(n);
@@ -557,7 +557,7 @@ L f_mul(L t, L e) {
 }
 
 L f_div(L t, L e) {
-  L n = not(cdr(t)) ? 1./eval(car(t), e) : car(t = evlis(t, e));
+  L n = not(cdr(t = evlis(t, e))) ? 1./car(t) : car(t);
   while (!not(t = cdr(t)))
     n /= car(t);
   return num(n);
