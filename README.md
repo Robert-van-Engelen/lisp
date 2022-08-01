@@ -24,7 +24,7 @@ I've documented this project's C source code extensively to explain the inner wo
 
 ## Is it really Lisp?
 
-Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this project preserves the original meaning and flavor of McCarthy's Lisp as much as possible.
+Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this project preserves the original meaning and flavor of McCarthy's Lisp as much as possible:
 
     > (define curry
           (lambda (f x)
@@ -33,7 +33,7 @@ Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this project pr
     > ((curry + 1) 2 3)
     6
 
-If your Lisp can't curry like this, it isn't classic Lisp.
+If your Lisp can't curry like this, it isn't classic Lisp!
 
 ## Compilation
 
@@ -71,7 +71,7 @@ The prompt displays the number of free cons pair cells + free stack cells availa
 
 ## Lisp language features
 
-Lisp symbols consist of a sequence of non-space characters, excluding `(`, `)`, `'` and `"`.  When used in a Lisp expression, a symbol is looked-up for its value, like a variable typically refers to its value.  Symbols can be quoted (see below) to use symbols literally.
+Lisp symbols consist of a sequence of non-space characters, excluding `(`, `)`, `'` and `"`.  When used in a Lisp expression, a symbol is looked-up for its value, like a variable typically refers to its value.  Symbols can be quoted `'foo` to use symbols literally and to pass them to functions.
 
 Strings are quoted and may contain `\a`, `\b`, `\t`, `\n`, `\v`, `\f` and `\r` escapes.  Use `\"` to escape the quote and `\\` to escape the backslash.
 
