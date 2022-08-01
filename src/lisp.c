@@ -1,14 +1,16 @@
 /* lisp.c with NaN boxing by Robert A. van Engelen 2022 BSD-3 license
+
    - double floating point, atoms, strings, lists, closures, macros
    - 41 built-in Lisp primitives
    - lexically-scoped locals in lambda, let, let*, letrec, letrec*
    - exceptions and error handling with safe return to REPL after an error
    - execution tracing to display Lisp evaluation steps
+   - load Lisp source code files
    - REPL with readline (compile: lisp.c -DHAVE_READLINE_H -lreadline)
    - break execution with CTRL-C (compile: lisp.c -DHAVE_SIGNAL_H)
    - mark-sweep garbage collector to recycle unused cons pair cells
    - compacting garbage collector to recycle unused atoms and strings
-   - Lisp memory is a single cell[] array, no malloc()-free() calls */
+   - Lisp memory is a single cell[] array, no malloc() and free() calls */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -145,7 +147,7 @@ const char *errors[ERRORS+1] = {
 /* size of the cell reference field of an atom/string on the heap, used by the compacting garbage collector */
 #define R sizeof(I)
 
-/* fp: free pointer points to free cell pair in the pool, next free pair is ord(cell[fp]) unless fp==0
+/* fp: free pointer points to free cell pair in the pool, next free pair is ord(cell[fp]) unless fp=0
    hp: heap pointer, A+hp points free atom/string heap space above the pool and below the stack
    sp: stack pointer, the stack starts at the top of cell[] with sp=N
    tr: 0 when tracing is off, 1 or 2 to trace Lisp evaluation steps */
@@ -248,7 +250,7 @@ L pop() {
   return cell[sp++];
 }
 
-/* unwind the stack up to position i, where i==N clears the stack */
+/* unwind the stack up to position i, where i=N clears the stack */
 void unwind(I i) {
   sp = i;
 }
@@ -379,11 +381,13 @@ char get() {
   else {
 #ifdef HAVE_READLINE_H
     if (see == '\n') {                          /* if looking at the end of the current readline line */
+      BREAK_OFF;                                /* disable interrupt to prevent free() without final line = NULL */
       if (line)                                 /* free the old line that was malloc'ed by readline */
         free(line);
       line = NULL;
+      BREAK_ON;                                 /* enable interrupt */
       while (!line)
-        if (!(ptr = line = readline(ps)))       /* read new line */
+        if (!(ptr = line = readline(ps)))       /* read new line and set ptr to start of the line */
           freopen("/dev/tty", "r", stdin);      /* try again when line is NULL after EOF by CTRL-D */
       add_history(line);                        /* make it part of the history */
       strcpy(ps, "?");                          /* change prompt to ? */
@@ -395,8 +399,7 @@ char get() {
       printf("%s", ps);
       strcpy(ps, "?");
     }
-    c = getchar();
-    if (c == EOF) {
+    if ((c = getchar()) == EOF) {
       freopen("/dev/tty", "r", stdin);
       c = '\n';
     }
@@ -414,17 +417,11 @@ I seeing(char c) {
 /* tokenize into buf[], return first character of buf[] */
 char scan() {
   I i = 0;
-s:while (seeing(' '))                           /* skip white space */
-    get();
-  if (seeing(';')) {                            /* skip ;-comments */
-    while (!seeing('\n'))
-      get();
-    goto s;
-  }
-  if (seeing('(') || seeing(')') || seeing('\'')) {
-    buf[i++] = get();                           /* ( ) ' are single-character tokens */
-  }
-  else if (seeing('"')) {                       /* tokenize a quoted string */
+  while (seeing(' ') || seeing(';'))            /* skip white space and ;-comments */
+    if (get() == ';')
+      while (!seeing('\n'))                     /* skip ;-comment until newline */
+        get();
+  if (seeing('"')) {                            /* tokenize a quoted string */
     do {
       buf[i++] = get();
       while (seeing('\\') && i < sizeof(buf)-1) {
@@ -440,11 +437,12 @@ s:while (seeing(' '))                           /* skip white space */
     if (get() != '"')
       ERROR_SYNTAX;
   }
-  else {                                        /* tokenize a symbol or a number */
+  else if (seeing('(') || seeing(')') || seeing('\''))
+    buf[i++] = get();                           /* ( ) ' are single-character tokens */
+  else                                          /* tokenize a symbol or a number */
     do
       buf[i++] = get();
     while (i < sizeof(buf)-1 && !seeing('(') && !seeing(')') && !seeing(' '));
-  }
   buf[i] = 0;
   return *buf;                                  /* return first character of token in buf[] */
 }
@@ -486,7 +484,7 @@ L parse() {
   if (*buf == '"')                              /* if token is a string, then return a new string */
     return string(buf+1);
   if (sscanf(buf, "%lg%n", &x, &i) > 0 && !buf[i])
-    return x;                                   /* return a number */
+    return x;                                   /* return a number, including inf, -inf and nan */
   return atom(buf);                             /* return an atom (a symbol) */
 }
 
@@ -797,9 +795,9 @@ struct {
   {"car",      f_car},          /* (car <pair>) => x -- "deconstruct" <pair> (x . y) */
   {"cdr",      f_cdr},          /* (cdr <pair>) => y -- "deconstruct" <pair> (x . y) */
   {"+",        f_add},          /* (+ n1 n2 ... nk) => n1+n2+...+nk */
-  {"-",        f_sub},          /* (- n1 n2 ... nk) => n1-n2-...-nk */
+  {"-",        f_sub},          /* (- n1 n2 ... nk) => n1-n2-...-nk or -n1 if k=1 */
   {"*",        f_mul},          /* (* n1 n2 ... nk) => n1*n2*...*nk */
-  {"/",        f_div},          /* (/ n1 n2 ... nk) => n1/n2/.../nk */
+  {"/",        f_div},          /* (/ n1 n2 ... nk) => n1/n2/.../nk or 1/n1 if k=1 */
   {"int",      f_int},          /* (int <integer.frac>) => <integer> */
   {"<",        f_lt},           /* (< n1 n2) => #t if n1<n2 else () */
   {"eq?",      f_eq},           /* (eq? x y) => #t if x==y else () */
@@ -985,8 +983,11 @@ int main() {
   using_history();
   BREAK_ON;                                     /* enable CTRL-C break to throw error 2 */
   i = setjmp(jb);                               /* init error handler: i is nonzero when thrown */
-  if (i)
+  if (i) {
+    while (fin)                                 /* close all open files */
+      fclose(in[--fin]);
     printf("ERR %u %s", i, errors[i <= ERRORS ? i : 0]);
+  }
   while (1) {                                   /* read-evel-print loop */
     putchar('\n');
     unwind(N);
