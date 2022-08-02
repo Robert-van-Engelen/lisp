@@ -24,7 +24,7 @@ I've documented this project's C source code extensively to explain the inner wo
 
 ## Is it really Lisp?
 
-Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this project preserves the original meaning and flavor of McCarthy's Lisp as much as possible:
+Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this project preserves the original meaning and flavor of [John McCarthy](https://en.wikipedia.org/wiki/John_McCarthy_(computer_scientist))'s [Lisp](https://en.wikipedia.org/wiki/Lisp_(programming_language)) as much as possible:
 
     > (define curry
           (lambda (f x)
@@ -33,7 +33,7 @@ Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this project pr
     > ((curry + 1) 2 3)
     6
 
-If your Lisp can't curry like this, it isn't classic Lisp!
+If your Lisp can't [curry](https://en.wikipedia.org/wiki/Currying) like this, it isn't classic Lisp!
 
 ## Compilation
 
@@ -115,11 +115,11 @@ constructs a pair `(x . y)` for expressions `x` and `y`.  Lists are formed by ch
 
     (car <pair>)
 
-returns the first part `x` of a pair `(x . y)`.
+returns the first part `x` of a pair `(x . y)` or list.
 
     (cdr <pair>)
 
-returns the second part `y` of a pair `(x . y)`.
+returns the second part `y` of a pair `(x . y)`.  For lists this returns the rest of the list after the first part.
 
 ### Arithmetic
 
@@ -128,7 +128,7 @@ returns the second part `y` of a pair `(x . y)`.
     (* n1 n2 ... nk)
     (/ n1 n2 ... nk)
 
-add, substract, multiply and divide `n1` to `nk`.  Subtraction and division with only one value are treated as special cases such that `(- 2)` is -2 and `(/ 2)` is 0.5.
+add, substract, multiply or divide the `n1` by `n2` to `nk`.  Subtraction and division with only one value are treated as special cases such that `(- 2)` is -2 and `(/ 2)` is 0.5.
  
     (int n)
 
@@ -170,7 +170,7 @@ if `x` is not `()` (meaning not false, i.e. true), then return `y` else return `
 
     (lambda <parameters> <expr>)
 
-returns an anonymous function "closure" with a list of parameters and an expression as its body.  For example, `(lambda (n) (* n n))` squares its argument.  The parameters may be a single name without list to catch the arguments as a list.  For example, `(lambda args args)` returns its arguments as a list.  The pair dot may be used to indicate the rest of the arguments.  For example, `(lambda (f x . args) (f . args))` applies a function argument`f` to the arguments `args`, while ignoring `x`.
+returns an anonymous function "closure" with a list of parameters and an expression as its body.  For example, `(lambda (n) (* n n))` squares its argument.  The parameters may be a single name not in a list to pass all arguments as a named list.  For example, `(lambda args args)` returns its arguments as a list.  The pair dot may be used to indicate the rest of the arguments.  For example, `(lambda (f x . args) (f . args))` applies a function argument`f` to the arguments `args`, while ignoring `x`.
 
 ### Macros
 
