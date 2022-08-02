@@ -1,5 +1,4 @@
 /* lisp.c with NaN boxing by Robert A. van Engelen 2022 BSD-3 license
-
    - double floating point, atoms, strings, lists, closures, macros
    - 41 built-in Lisp primitives
    - lexically-scoped locals in lambda, let, let*, letrec, letrec*
@@ -147,14 +146,14 @@ const char *errors[ERRORS+1] = {
 /* size of the cell reference field of an atom/string on the heap, used by the compacting garbage collector */
 #define R sizeof(I)
 
+/* array of Lisp expressions, shared by the pool, heap and stack */
+L cell[N];
+
 /* fp: free pointer points to free cell pair in the pool, next free pair is ord(cell[fp]) unless fp=0
    hp: heap pointer, A+hp points free atom/string heap space above the pool and below the stack
    sp: stack pointer, the stack starts at the top of cell[] with sp=N
    tr: 0 when tracing is off, 1 or 2 to trace Lisp evaluation steps */
 I fp = 0, hp = H, sp = N, tr = 0;
-
-/* array of Lisp expressions, shared by the pool, heap and stack */
-L cell[N];
 
 /* Lisp constant expressions () (nil) and #t, and the global environment env */
 L nil, tru, env;
@@ -166,17 +165,18 @@ uint32_t used[(P+63)/64];
 void mark(I i) {
   while (!(used[i/64] & 1 << i/2%32)) {         /* while i'th cell pair is not used in the pool */
     used[i/64] |= 1 << i/2%32;                  /* mark i'th cell pair as used */
-    if ((T(cell[i]) & ~(CONS^MACR)) == CONS)    /* recursively mark car cell[i] if car refers to a cons pair */
+    if ((T(cell[i]) & ~(CONS^MACR)) == CONS)    /* recursively mark car cell[i] if car refers to a pair */
       mark(ord(cell[i]));
-    if ((T(cell[i+1]) & ~(CONS^MACR)) == CONS)  /* iteratively mark cdr cell[i+1] if cdr refers to a cons pair */
-      i = ord(cell[i+1]);
+    if ((T(cell[i+1]) & ~(CONS^MACR)) != CONS)  /* if cdr cell[i+1] is not a pair, then break and return */
+      break;
+    i = ord(cell[i+1]);                         /* iteratively mark cdr cell[i+1] */
   }
 }
 
 /* mark-sweep garbage collector recycles cons pair pool cells, returns total number of free cells in the pool */
 I sweep() {
   I i, j;
-  for (fp = 0, i = P/2-1, j = 0; i; --i) {      /* for each cons pair (two cells) in the pool, from top to bottom */
+  for (fp = 0, i = P/2, j = 0; i--; ) {         /* for each cons pair (two cells) in the pool, from top to bottom */
     if (!(used[i/32] & 1 << i%32)) {            /* if the cons pair cell[2*i] and cell[2*i+1] are not used */
       cell[2*i] = box(NIL, fp);                 /* then add it to the linked list of free cells pairs as a NIL box */
       fp = 2*i;                                 /* free pointer points to the last added free pair */
@@ -212,19 +212,21 @@ void compact() {
         cell[k] = box(T(cell[k]), hp+R);        /* hp+R is the new location of the atom/string after compaction */
         k = l;
       }
-      memmove(A+hp, A+i, n);                    /* move atom/string further down the heap to hp+R to compact the heap */
+      if (hp < i)
+        memmove(A+hp, A+i, n);                  /* move atom/string further down the heap to hp+R to compact the heap */
       hp += n;                                  /* update heap pointer to the available space above the atom/string */
     }
     i += n;
   }
 }
 
-/* garbage collector, returns number of free cells in the pool */
+/* garbage collector, returns number of free cells in the pool or raises ERROR_OUT_OF_MEMORY */
 I gc() {
   I i;
   BREAK_OFF;                                    /* do not interrupt GC */
   memset(used, 0, sizeof(used));                /* clear all used[] bits */
-  mark(ord(env));                               /* mark all globally-used cons cell pairs referenced from env list */
+  if (T(env) == CONS)
+    mark(ord(env));                             /* mark all globally-used cons cell pairs referenced from env list */
   for (i = sp; i < N; ++i)
     if ((T(cell[i]) & ~(CONS^MACR)) == CONS)
       mark(ord(cell[i]));                       /* mark all cons cell pairs referenced from the stack */
@@ -295,10 +297,10 @@ L string(const char *s) {
 
 /* construct pair (x . y) returns a NaN-boxed CONS */
 L cons(L x, L y) {
-  L p; I i = fp;                                /* i'th cons cell pair cell[i] and cell[i+1] is free */
+  L p; I i = fp;                                /* i'th cons cell pair car cell[i] and cdr cell[i+1] is free */
   fp = ord(cell[i]);                            /* update free pointer to next free cell pair, zero if none are free */
   cell[i] = x;                                  /* save x into car cell[i] */
-  cell[i+1] = y;                                /* save y into cdr cell[i] */
+  cell[i+1] = y;                                /* save y into cdr cell[i+1] */
   p = box(CONS, i);                             /* new cons pair NaN-boxed CONS */
   if (!fp || ALWAYS_GC) {                       /* if no more free cell pairs */
     push(p);                                    /* save new cons pair p on the stack so it won't get GC'ed */
@@ -473,8 +475,7 @@ L list() {
 
 /* return a parsed Lisp expression */
 L parse() {
-  int i;
-  L x;
+  L x; I i;
   if (*buf == '(')                              /* if token is ( then parse a list */
     return list();
   if (*buf == '\'') {                           /* if token is ' then parse an expression x to return (quote x) */
@@ -740,13 +741,12 @@ L f_string(L t, L e) {
 
 L f_load(L t, L e) {
   L x = f_string(t, e);
-  if (!input(A+ord(x)))
-    ERROR_ARGUMENTS;
-  return cons(atom("load"), cons(x, nil));
+  return input(A+ord(x)) ? cons(atom("load"), cons(x, nil)) : ERROR_ARGUMENTS;
 }
 
 L f_trace(L t, L e) {
-  return tr = T(t) == NIL ? 1 : car(t);
+  tr = T(t) == NIL ? 1 : car(t);
+  return tr;
 }
 
 L f_catch(L t, L e) {

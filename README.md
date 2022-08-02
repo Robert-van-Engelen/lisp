@@ -279,7 +279,7 @@ Additional Lisp functions and macros are defined in [init.lisp](src/init.lisp).
 
 ### Memory layout
 
-Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this Lisp interpreter's memory is a single `cell[N]` array of Lisp expressions `L`.  The difference is that this interpreter's memory `cell[]` contains a pool of free and used cons pairs to recycle using garabage collection, a heap to store atoms and strings, and a stack:
+Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this Lisp interpreter's memory is a single `cell[N]` array of Lisp expressions `L`.  The difference is that this interpreter's memory `cell[]` contains a pool of free and used cons pairs to recycle using garbage collection, a heap to store atoms and strings, and a stack:
 
     /* array of Lisp expressions, shared by the pool, heap and stack */
     L cell[N];
@@ -309,7 +309,7 @@ and an offset `H` such that byte-addressable address `A+H` points to the bottom 
     /* heap address start offset, the heap starts at address A+H immediately above the pool */
     #define H (8*P)
 
-Each atom and string stored in the heap has a special reference field located before it.  A reference is an unsigned integer.  We will use this reference field to construct a linked list pointing to `cell[]` with `ATOM` and `STRG` values that point to the same atom or string.  If the linked list is empty, then the atom or string is not used and can be removed from the heap.  The size of this reference field is `R`:
+Each atom and string stored in the heap has a special reference field located in front of it.  A reference is an unsigned integer.  We will use this reference field to construct a linked list pointing to `cell[]` with `ATOM` and `STRG` values that point to the same atom or string.  If the linked list is empty, then the atom or string is not used and can be removed from the heap.  The size of this reference field is `R`:
 
     /* size of the cell reference field of an atom/string on the heap, used by the compacting garbage collector */
     #define R sizeof(I)
@@ -322,9 +322,9 @@ The free cells in the pool form a linked list `fp` with the list ending as zero.
        tr: 0 when tracing is off, 1 or 2 to trace Lisp evaluation steps */
     I fp = 0, hp = H, sp = N, tr = 0;
 
-### Cons
+### Consing
 
-To construct a new cons pair `(x . y)` is easy, but we must guard against two potential problems.  First, to do if the pool is already full?  Second, if it is full and we invoke garbage collection, how do we make sure we do not lose the unprotected `x` and `y` values when garbage collection recycles them?  The `x` and `y` values may be temporary lists for example.  A simple and safe approach is to assume that we have at least one cell pair free to construct `(x . y)`.  If there are no free cells left after that, we invoke garbage collection while protecting the pair `(x . y)` and its constituent `x` and `y`:
+To construct a new cons pair `(x . y)` is easy, but we must guard against two potential problems.  First, what to do if the pool is already full?  Second, if it is full and we invoke garbage collection, how do we make sure we do not lose the unprotected `x` and `y` values when garbage collection recycles them?  The `x` and `y` values may be temporary lists for example.  A simple and safe approach is to assume that we have at least one cell pair free to construct `(x . y)`.  If there are no free cells left after that, we invoke garbage collection while protecting the pair `(x . y)` and its constituent `x` and `y`:
 
     /* construct pair (x . y) returns a NaN-boxed CONS */
     L cons(L x, L y) {
@@ -361,12 +361,12 @@ To allocate bytes on the heap to store atoms and strings, we just need to make s
 
 ### Classic mark-sweep garbage collection
 
-Unused cell pairs in the pool are recycled using garbage collection.  One of the simplest algorithms is mark-sweep, developed by John McCarthy.  We need a bit vector to mark cells as used.  Because we mark cell pairs, the number of bits we need is halve the pool size:
+Unused cell pairs in the pool are recycled using garbage collection.  One of the simplest algorithms is mark-sweep, developed by John McCarthy.  We need a bit vector to mark cells as used.  Because we mark cell pairs, the number of bits we need is half the pool size:
 
     /* bit vector corresponding to the pairs of cells in the pool marked 'used' (car and cdr cells are marked together) */
     uint32_t used[(P+63)/64];
 
-To check if i'th cell is used, it's bit is checked with `used[i/64] & 1 << i/2%32)`.  To set the bit for the pair i and i+1 (remember we mark both cells with one bit), we execute `used[i/64] |= 1 << i/2%32`.  With these two ingredients, our mark stage is pretty simple given a root cell i to mark all cells reachable transitively via car `cell[i]` and cdr `cell[i+1]`:
+To check if the i'th cell is used, its bit is checked with `used[i/64] & 1 << i/2%32)`.  To set the bit for the pair i and i+1 (remember we mark both cells with one bit), we execute `used[i/64] |= 1 << i/2%32`.  With these two ingredients, our mark stage is pretty simple given a root cell i to mark all cells reachable transitively via car `cell[i]` and cdr `cell[i+1]`:
 
     /* mark-sweep garbage collector recycles cons pair pool cells, finds and marks cells that are used */
     void mark(I i) {
@@ -482,7 +482,7 @@ I couldn't find an acceptable example of a mark-sweep garbage collector using po
       }
     }
 
-This `mark` implementation is only about twice longer than the recursive version.  No additional code changes are needed.  The `sweep` and `gc` functions remain the same.
+No additional code changes are needed to the interpreter.  The `sweep` and `gc` functions remain the same.
 
 ### How temporary Lisp data is protected from recycling
 
