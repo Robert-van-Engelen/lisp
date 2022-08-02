@@ -79,7 +79,7 @@ Double precision floating point numbers, including `inf`, `-inf` and `nan`, can 
 
 Lisp symbols consist of a sequence of non-space characters, excluding `(`, `)`, `'` and `"`.  When used in a Lisp expression, a symbol is looked-up for its value, like a variable typically refers to its value.  Symbols can be '-quoted `'foo` to use symbols literally and to pass them to functions.
 
-## Strings
+### Strings
 
 Strings are "-quoted and may contain `\a`, `\b`, `\t`, `\n`, `\v`, `\f` and `\r` escapes.  Use `\"` to escape the quote and `\\` to escape the backslash.
 
@@ -107,7 +107,7 @@ protects `<expr>` from evaluation by quoting, same as `'<expr>`.  For example, `
 
 evaluates a quoted expression and returns its value.  For example, `(eval '(+ 1 2))` is 3.
 
-### Construction and deconstructing lists
+### Constructing and deconstructing lists
 
     (cons x y)
 
