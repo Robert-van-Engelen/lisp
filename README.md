@@ -71,27 +71,43 @@ The prompt displays the number of free cons pair cells + free stack cells availa
 
 ## Lisp language features
 
-Lisp symbols consist of a sequence of non-space characters, excluding `(`, `)`, `'` and `"`.  When used in a Lisp expression, a symbol is looked-up for its value, like a variable typically refers to its value.  Symbols can be quoted `'foo` to use symbols literally and to pass them to functions.
+### Numbers
 
-Strings are quoted and may contain `\a`, `\b`, `\t`, `\n`, `\v`, `\f` and `\r` escapes.  Use `\"` to escape the quote and `\\` to escape the backslash.
+Double precision floating point numbers, including `inf`, `-inf` and `nan`, can be specified.
 
-Lists are code and data in Lisp.  Syntactically, a dot may be used for the last list element to construct a pair rather than a list that ends with a nil `()`.  For example, `'(1 . 2)` is a pair, whereas `'(1 2)` is a list.  By the nature of linked lists, a list after a dot creates a list, not a pair.  For example, `'(1 . (2 . ()))` is the same as `'(1 2)`.
+### Symbols
+
+Lisp symbols consist of a sequence of non-space characters, excluding `(`, `)`, `'` and `"`.  When used in a Lisp expression, a symbol is looked-up for its value, like a variable typically refers to its value.  Symbols can be '-quoted `'foo` to use symbols literally and to pass them to functions.
+
+## Strings
+
+Strings are "-quoted and may contain `\a`, `\b`, `\t`, `\n`, `\v`, `\f` and `\r` escapes.  Use `\"` to escape the quote and `\\` to escape the backslash.
+
+    (string x1 x2 ... xk)
+
+returns a string concatenation of the specified symbols, strings and/or numbers.  Lists may contain 8-bit character codes (ASCII/UTF-8) that are converted to a string.
+
+### Lists
+
+Lists are code and data in Lisp.  Syntactically, a dot may be used for the last list element to construct a pair rather than a list that ends with a nil value, written as `()` the empty list.  For example, `'(1 . 2)` is a pair, whereas `'(1 2)` is a list.  By the nature of linked lists, a list after a dot creates a list, not a pair.  For example, `'(1 . (2 . ()))` is the same as `'(1 2)`.
+
+### Function calls
 
     (<function> <expr1> <expr2> ... <exprn>)
 
 applies a function to the rest of the list of expresssions as its arguments.  The following are all built-in functions, called "primitives" and "special forms".
 
-    (type <expr>)
+### Quoting and unquoting
 
-returns a value between 0 and 9 to identify the type of `<expr>`.
+    (quote <expr>)
+
+protects `<expr>` from evaluation by quoting, same as `'<expr>`.  For example, `'(1 () foo (bar 7))` is a list containing unevaluated expressions protected by the quote.
 
     (eval <quoted-expr>)
 
 evaluates a quoted expression and returns its value.  For example, `(eval '(+ 1 2))` is 3.
 
-    (quote <expr>)
-
-protects `<expr>` from evaluation by quoting, same as `'<expr>`.  For example, `'(1 () foo (bar 7))` is a list containing unevaluated expressions protected by the quote.
+### Construction and deconstructing lists
 
     (cons x y)
 
@@ -105,6 +121,8 @@ returns the first part `x` of a pair `(x . y)`.
 
 returns the second part `y` of a pair `(x . y)`.
 
+### Arithmetic
+
     (+ n1 n2 ... nk)
     (- n1 n2 ... nk)
     (* n1 n2 ... nk)
@@ -115,6 +133,8 @@ add, substract, multiply and divide `n1` to `nk`.  Subtraction and division with
     (int n)
 
 returns the integer part of a number `n`.
+
+### Logic
 
     (< n1 n2)
 
@@ -136,6 +156,8 @@ returns `#t` if all of the `x` are not `()`.  Otherwise, returns `()` (empty lis
 
 returns `#t` if `x` is not `()`.  Otherwise, returns `()` (empty list means false).
 
+### Conditionals
+
     (cond (x1 y1) (x2 y2) ... (xk yk))
 
 returns the `y` corresponding to the first `x` that is not `()` (meaning not false, i.e. true).
@@ -144,13 +166,19 @@ returns the `y` corresponding to the first `x` that is not `()` (meaning not fal
 
 if `x` is not `()` (meaning not false, i.e. true), then return `y` else return `z`.
 
+### Lambdas
+
     (lambda <parameters> <expr>)
 
-an anonymous function with a list of parameters and an expression as its body.  For example, `(lambda (n) (* n n))` squares its argument.  The parameters may be a single name without list to catch the arguments as a list.  For example, `(lambda args args)` returns its arguments as a list.  The pair dot may be used to indicate the rest of the arguments.  For example, `(lambda (f x . args) (f . args))` applies a function argument`f` to the arguments `args`, while ignoring `x`.
+returns an anonymous function "closure" with a list of parameters and an expression as its body.  For example, `(lambda (n) (* n n))` squares its argument.  The parameters may be a single name without list to catch the arguments as a list.  For example, `(lambda args args)` returns its arguments as a list.  The pair dot may be used to indicate the rest of the arguments.  For example, `(lambda (f x . args) (f . args))` applies a function argument`f` to the arguments `args`, while ignoring `x`.
+
+### Macros
 
     (macro <parameters> <expr>)
 
 a macro is like a function, except that it does not evaluate its arguments.  Macros typically construct Lisp code that is evaluated when the macro is expanded.
+
+### Globals
 
     (define <symbol> <expr>)
 
@@ -164,6 +192,8 @@ returns the value associated with the quoted symbol in the given environment.
 
 returns the current environment.  When executed in the REPL, returns the global environment.
 
+### Locals
+
     (let (v1 x1) (v2 x2) ... (vk xk) y)
     (let* (v1 x1) (v2 x2) ... (vk xk) y)
 
@@ -174,6 +204,8 @@ evaluates `y` with a local scope of bindings for symbols `v` bound to the values
 
 evaluates `y` with a local scope of recursive bindings for symbols `v` bound to the values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list, but allow multiple `y` (you can use `begin` instead).
 
+### Assignments
+
     (setq <symbol> x)
 
 assigns a globally or locally-bound symbol a new value.
@@ -181,7 +213,13 @@ assigns a globally or locally-bound symbol a new value.
     (set-car! <pair> x)
     (set-cdr! <pair> y)
 
-assigns a pair a new car or cdr value, respectively.
+assign a pair a new car or cdr value, respectively.
+
+### Loading and IO
+
+    (load <name>)
+
+loads the specified file name (name is a string or a symbol.)
 
     (read)
 
@@ -195,17 +233,13 @@ prints the expressions.  Strings are quoted.
 
 prints the expressions.  Strings are not quoted.
 
-    (string x1 x2 ... xk)
-
-returns a string concatenation of symbols, strings and numbers.  Lists may contain 8-bit character codes (ASCII/UTF-8) that are converted to a string.
-
-    (load <name>)
-
-loads the specified file name specified as a string or symbol.
+### Debugging
 
     (trace <0|1|2>)
 
 disables tracing (0), enables tracing (1) and enables tracing with ENTER press (2).
+
+### Exceptions
 
     (catch <expr>)
 
@@ -215,6 +249,8 @@ catch exceptions in the evaluation of an expression, returns the value of the ex
 
 throws error `n`, where `n` must be a positive constant.
 
+### Statement sequencing and repetition
+
     (begin x1 x2 ... xk)
 
 sequentially evaluates expressions, returns the value of the last expression.
@@ -223,9 +259,19 @@ sequentially evaluates expressions, returns the value of the last expression.
 
 while `x` is not `()` (meaning true), evaluates expressions `y`.  Returns the last value of `yk` or `()` when the loop never ran.
 
+### Introspection
+
+    (type <expr>)
+
+returns a value between 0 and 9 to identify the type of `<expr>`.
+
+### Quit
+
     (quit)
 
 exits Lisp.
+
+## Library functions
 
 Additional Lisp functions and macros are defined in [init.lisp](src/init.lisp).
 
