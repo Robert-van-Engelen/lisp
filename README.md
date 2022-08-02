@@ -20,7 +20,7 @@ A quick glance at this Lisp interpreter's features:
 - easily customizable and extendable to add new special features
 - integrates with C and C++ code by calling C functions for Lisp primitives, e.g. for embedding a Lisp interpreter
 
-I've documented this project's C source code extensively to explain the inner workings of the interpreter.  This Lisp interpreter includes a [tracing garbage collector](https://en.wikipedia.org/wiki/Tracing_garbage_collection) to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection), because it is fairly easy to understand.  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, we can implement [mark-sweep with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) to eliminate recursive calls entirely.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, a compacting garbage collector is used to remove unused atoms and strings from the heap.
+I've documented this project's C source code extensively to explain the inner workings of the interpreter.  This Lisp interpreter includes a [tracing garbage collector](https://en.wikipedia.org/wiki/Tracing_garbage_collection) to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection), because it is fairly easy to understand.  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, I've included a [mark-sweep with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) to eliminate recursive calls entirely.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, we use a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) to remove unused atoms and strings from the heap.
 
 ## Is it really Lisp?
 
@@ -452,6 +452,7 @@ Since the pool and stack share the same `cell[]` array, the linked lists are sim
 
 I couldn't find an acceptable example of a mark-sweep garbage collector using pointer reversal.  After tinkering a bit with different variations of the same theme, I came up with the following algorithm and implementation that is both elegant and efficient:
 
+    /* mark-sweep garbage collector recycles cons pair pool cells, finds and marks cells that are used */
     void mark(I i) {
       I j = N;                                      /* the cell above, N is a sentinel value, i.e. no cell above the root */
       I k;                                          /* the car or cdr cell below to visit (go down) or visited (go up) */
