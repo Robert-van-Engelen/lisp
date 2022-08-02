@@ -15,6 +15,7 @@ A quick glance at this Lisp interpreter's features:
 - REPL with GNU readline (optional)
 - break execution with CTRL-C (optional)
 - mark-sweep garbage collector to recycle unused cons pair cells
+- plus alternative non-recursive mark-sweep garbage collector
 - compacting garbage collector to recycle unused atoms and strings
 - Lisp memory is a single `cell[]` array, no `malloc()` and `free()` calls
 - easily customizable and extendable to add new special features
@@ -77,7 +78,11 @@ Double precision floating point numbers, including `inf`, `-inf` and `nan`.  Num
 
 ### Symbols
 
-Lisp symbols consist of a sequence of non-space characters, excluding `(`, `)`, `'` and `"`.  When used in a Lisp expression, a symbol is looked-up for its value, like a variable typically refers to its value.  Symbols can be '-quoted `'foo` to use symbols literally and to pass them to functions.
+Lisp symbols consist of a sequence of non-space characters, excluding `(`, `)`, `'` and `"`.  When used in a Lisp expression, a symbol is looked-up for its value, like a variable typically refers to its value.  Symbols can be '-quoted like `'foo` to use symbols literally and to pass them to functions.
+
+### Booleans
+
+Well, Lisp doesn't need Booleans.  An `()` empty list (called nil) is considered false and anything not `()` is considered true.  For convenience, `#t` is a symbol representing true (`#t` evaluates to itself, i.e. quoting is not needed.)
 
 ### Strings
 
