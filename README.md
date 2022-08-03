@@ -15,13 +15,13 @@ A quick glance at this Lisp interpreter's features:
 - REPL with GNU readline (optional)
 - break execution with CTRL-C (optional)
 - mark-sweep garbage collector to recycle unused cons pair cells
-- plus alternative non-recursive mark-sweep garbage collector
+- plus alternative non-recursive mark-sweep garbage collector (using pointer reversal)
 - compacting garbage collector to recycle unused atoms and strings
 - Lisp memory is a single `cell[]` array, no `malloc()` and `free()` calls
 - easily customizable and extendable to add new special features
 - integrates with C and C++ code by calling C functions for Lisp primitives, e.g. for embedding a Lisp interpreter
 
-I've documented this project's C source code extensively to explain the inner workings of the interpreter.  This Lisp interpreter includes a [tracing garbage collector](https://en.wikipedia.org/wiki/Tracing_garbage_collection) to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection), because it is fairly easy to understand.  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, I've included a [mark-sweep with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) to eliminate recursive calls entirely.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, we use a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) to remove unused atoms and strings from the heap.
+I've documented this project's C source code extensively to explain the inner workings of the interpreter.  This Lisp interpreter includes a [tracing garbage collector](https://en.wikipedia.org/wiki/Tracing_garbage_collection) to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection), because it is fairly easy to understand.  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, I've included a [mark-sweep with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) as an alternative method to eliminate recursive calls entirely.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, we use a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) to remove unused atoms and strings from the heap.
 
 ## Is it really Lisp?
 
@@ -505,7 +505,7 @@ One small challenge arises when we recycle unused Lisp data.  Whenever we constr
       return &cell[sp];
     }
 
-Later we can pop the value from the stack:
+Later we should pop the value from the stack:
 
     /* pop from the stack and return value */
     L pop() {
@@ -530,11 +530,30 @@ For example, the `let` primitive extends the list of local bindings `e` with new
       return x;
     }
 
-Note that `push` protects the list of bindings pointed to by `p`.  The bindings `e` are assumed to be protected already, but the pairs we add to the front of the list using the `pair` function won't be protected.  The arguments to `cons` and `pair` are automatically protected by these functions, which does not suffice in this example to protect the list `*p` when `eval(car(t), *p)` is called.
+Note that `push` protects the list of bindings pointed to by `p`.  The bindings `e` are assumed to be protected already, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  The arguments to `cons` and `pair` are automatically protected by these functions, which does not suffice in this example to protect the list `*p` when `eval` is called.
 
-### Debugging
+### Memory debugging
 
-To debug memory management, compile lisp.c with `-DDEBUG` to force garbage collection after each pair construction and atom/string allocation.  This helps to identify temporary Lisp data that may get removed by the collector by accident and therefore should have been protected.  Note that this configuration significantly slows down the interpreter.
+To help with debugging garbage collection, compile lisp.c with `-DDEBUG` to force garbage collection after each pair construction and atom/string allocation.  This helps to identify temporary Lisp data that may get removed by the collector by accident and therefore should have been protected.  Note that this configuration significantly slows down the interpreter.
+
+The following `dump` function displays the contents of the pool, e.g. when added to the REPL.  To avoid getting huge dumps, change `P` to a small number (e.g. 64, 128 or 256) and comment out some of the `prim[]` entries and remove the init.lisp input to make sure the important primitives and code you want to check fit in memory.
+
+    void dump() {
+      I i;
+      for (i = 0; i < P; ++i) {
+        printf("\n%c %u: ", used[i/64] & 1 << i/2%32 ? '*' : ' ', i);
+        if (T(cell[i]) == NIL && ord(cell[i])) printf("FREE -> %u", ord(cell[i++]));
+        else if (T(cell[i]) == NIL) printf("()");
+        else if (T(cell[i]) == ATOM) printf("%s", A+ord(cell[i]));
+        else if (T(cell[i]) == STRG) printf("\"%s\"", A+ord(cell[i]));
+        else if (T(cell[i]) == PRIM) printf("<%s>", prim[ord(cell[i])].s);
+        else if (T(cell[i]) == CONS) printf("(%u)", ord(cell[i]));
+        else if (T(cell[i]) == CLOS) printf("{%u}", ord(cell[i]));
+        else if (T(cell[i]) == MACR) printf("[%u]", ord(cell[i]));
+        else printf(FLOAT, cell[i]);
+      }
+      printf("\nenv=%u fp=%u hp=%u sp=%u\n", ord(env), fp, hp, sp);
+    }
 
 ## More?
 
