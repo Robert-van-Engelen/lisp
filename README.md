@@ -165,11 +165,11 @@ returns `#t` if `x` is not `()`.  Otherwise, returns `()` (empty list means fals
 
     (cond (x1 y1) (x2 y2) ... (xk yk))
 
-returns the `y` corresponding to the first `x` that is not `()` (meaning not false, i.e. true).
+returns the value of `y` corresponding to the first `x` that is not `()` (meaning not false, i.e. true).  If the `y` are multiple expressions, then all expressions are evaluated and the value of the last expression is returned.
 
     (if x y z)
 
-if `x` is not `()` (meaning not false, i.e. true), then return `y` else return `z`.
+if `x` is not `()` (meaning not false, i.e. true), then return `y` else return `z`.  If `z` is missing then `()` is returned.  If `z` are multiple expressions, then all expressions are evaluated and the value of the last expression is returned.
 
 ### Lambdas
 
@@ -208,6 +208,8 @@ evaluates `y` with a local scope of bindings for symbols `v` bound to the values
     (letrec* (v1 x1) (v2 x2) ... (vk xk) y)
 
 evaluates `y` with a local scope of recursive bindings for symbols `v` bound to the values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list, but allow multiple `y` (you can use `begin` instead).
+
+If the `x` are multiple expressions, then all expressions are evaluated and the value of the last expression is bound to the corresponding `v`.
 
 ### Assignments
 

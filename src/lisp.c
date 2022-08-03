@@ -593,14 +593,28 @@ L f_and(L t, L e) {
   return tru;
 }
 
+L f_begin(L t, L e) {
+  L x = nil;
+  for (; T(t) == CONS; t = cdr(t))
+    x = eval(car(t), e);
+  return x;
+}
+
+L f_while(L t, L e) {
+  L s, x = nil;
+  while (!not(eval(car(t), e)))
+    x = f_begin(cdr(t), e);
+  return x;
+}
+
 L f_cond(L t, L e) {
   while (T(t) != NIL && not(eval(car(car(t)), e)))
     t = cdr(t);
-  return eval(car(cdr(car(t))), e);
+  return f_begin(cdr(car(t)), e);
 }
 
 L f_if(L t, L e) {
-  return eval(car(cdr(not(eval(car(t), e)) ? cdr(t) : t)), e);
+  return not(eval(car(t), e)) ? f_begin(cdr(cdr(t)), e) : eval(car(cdr(t)), e);
 }
 
 L f_lambda(L t, L e) {
@@ -628,7 +642,7 @@ L f_env(L t, L e) {
 L f_let(L t, L e) {
   L x, *p;
   for (p = push(e); let(t); t = cdr(t))
-    *p = pair(car(car(t)), eval(car(cdr(car(t))), e), *p);
+    *p = pair(car(car(t)), f_begin(cdr(car(t)), e), *p);
   x = eval(car(t), *p);
   pop();
   return x;
@@ -637,7 +651,7 @@ L f_let(L t, L e) {
 L f_leta(L t, L e) {
   L x, *p;
   for (p = push(e); let(t); t = cdr(t))
-    *p = pair(car(car(t)), eval(car(cdr(car(t))), *p), *p);
+    *p = pair(car(car(t)), f_begin(cdr(car(t)), *p), *p);
   x = eval(car(t), *p);
   pop();
   return x;
@@ -648,7 +662,7 @@ L f_letrec(L t, L e) {
   for (p = push(e), s = t; let(s); s = cdr(s))
     *p = pair(car(car(s)), nil, *p);
   for (s = *p; !equ(s, e); s = cdr(s), t = cdr(t))
-    cell[ord(car(s))+1] = eval(car(cdr(car(t))), *p);
+    cell[ord(car(s))+1] = f_begin(cdr(car(t)), *p);
   x = eval(car(t), *p);
   pop();
   return x;
@@ -658,7 +672,7 @@ L f_letreca(L t, L e) {
   L x, *p;
   for (p = push(e); let(t); t = cdr(t)) {
     *p = pair(car(car(t)), nil, *p);
-    cell[ord(car(*p))+1] = eval(car(cdr(car(t))), *p);
+    cell[ord(car(*p))+1] = f_begin(cdr(car(t)), *p);
   }
   x = eval(car(t), *p);
   pop();
@@ -764,21 +778,6 @@ L f_throw(L t, L e) {
   longjmp(jb, (I)num(car(t)));
 }
 
-L f_begin(L t, L e) {
-  L x = nil;
-  for (; T(t) == CONS; t = cdr(t))
-    x = eval(car(t), e);
-  return x;
-}
-
-L f_while(L t, L e) {
-  L s, x = nil;
-  while (!not(eval(car(t), e)))
-    for (s = cdr(t); T(s) == CONS; s = cdr(s))
-      x = eval(car(s), e);
-  return x;
-}
-
 L f_quit(L t, L e) {
   exit(0);
 }
@@ -804,6 +803,8 @@ struct {
   {"or",       f_or},           /* (or x1 x2 ... xk) => #t if any x1 is not () else () */
   {"and",      f_and},          /* (and x1 x2 ... xk) => #t if all x1 are not () else () */
   {"not",      f_not},          /* (not x) => #t if x==() else ()t */
+  {"begin",    f_begin},        /* (begin x1 x2 ... xk) => xk -- evaluates x1, x2 to xk */
+  {"while",    f_while},        /* (while x y1 y2 ... yk) -- while x is not () evaluate y1, y2 ... yk */
   {"cond",     f_cond},         /* (cond (x1 y1) (x2 y2) ... (xk yk)) => yi for first xi!=() */
   {"if",       f_if},           /* (if x y z) => if x!=() then y else z */
   {"lambda",   f_lambda},       /* (lambda <parameters> <expr>) => {closure} */
@@ -826,8 +827,6 @@ struct {
   {"trace",    f_trace},        /* (trace 0) -- trace off / (trace 1) -- trace on / (trace 2) -- trace with keypress */
   {"catch",    f_catch},        /* (catch <expr>) => <value-of-expr> if no exception else (ERR . n) */
   {"throw",    f_throw},        /* (throw n) -- raise exception error code n (integer constant > 0) */
-  {"begin",    f_begin},        /* (begin x1 x2 ... xk) => xk -- evaluates x1, x2 to xk */
-  {"while",    f_while},        /* (while x y1 y2 ... yk) -- while x is not () evaluate y1, y2 ... yk */
   {"quit",     f_quit},         /* (quit) -- bye! */
   {0}
 };
