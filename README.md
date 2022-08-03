@@ -488,6 +488,8 @@ I couldn't find an acceptable example of a mark-sweep garbage collector using po
       }
     }
 
+The clever bit is that a car cell has an even index and a cdr cell has an odd index in the pool.  We use this observation when going back up the graph.  When going down (the first loop), we visit car-pointed pairs that are not already marked.  If the car cell does not point to a pair or if it is already marked, then we visit the cdr-pointed pair instead until we run out of pairs to visit.  When going back up in the graph (the second loop) we check if the node is a car cell. If so, we should exit the second loop to descent back down (in the first loop) into the car's sibling cdr cell.  The graph traversal ends when we are back at the root at a cdr cell with an odd index.
+
 No additional code changes are needed to the interpreter.  The `sweep` and `gc` functions remain the same.
 
 ### How temporary Lisp data is protected from recycling
