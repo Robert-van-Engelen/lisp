@@ -1,21 +1,19 @@
 # Lisp in under 1k lines of C, explained
 
-This project is a continuation of the [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) project _"Lisp in 99 lines of C and how to write one yourself."_  If you're interested in writing a Lisp interpreter of your own, then you may want to check out the [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) project first.  If you already did, then welcome back!
+A logical continuation of the [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) project _"Lisp in 99 lines of C and how to write one yourself."_  If you're interested in writing a Lisp interpreter of your own, then you may want to check out the [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) project first.  If you already did, then welcome back!
 
-_Spoiler alert: do not read the C code of this project if you want to give [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) a try first to implement some of these features yourself._
-
-A quick glance at this Lisp interpreter's features:
+A quick glance at this small Lisp interpreter's features:
 
 - Lisp with double floating point, atoms, strings, lists, closures, macros
 - over 40 built-in Lisp primitives
 - lexically-scoped locals, like tinylisp
 - exceptions and error handling with safe return to REPL after an error
-- execution tracing to display Lisp evaluation steps
-- load Lisp source code files
+- break with CTRL-C to return to the REPL (optional)
 - REPL with GNU readline (optional)
-- break execution with CTRL-C (optional)
+- load Lisp source code files
+- execution tracing to display Lisp evaluation steps
 - mark-sweep garbage collector to recycle unused cons pair cells
-- plus alternative non-recursive mark-sweep garbage collector (using pointer reversal)
+- plus an alternative non-recursive garbage collector (mark-sweep using pointer reversal)
 - compacting garbage collector to recycle unused atoms and strings
 - Lisp memory is a single `cell[]` array, no `malloc()` and `free()` calls
 - easily customizable and extendable to add new special features
@@ -42,7 +40,7 @@ Just one source code file [lisp.c](src/lisp.c) to compile:
 
     $ cc -o lisp lisp.c -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
 
-Without enabling CTRL-C to break execution and without the [GNU readline](https://en.wikipedia.org/wiki/GNU_Readline) library:
+Without CTRL-C to break and without the [GNU readline](https://en.wikipedia.org/wiki/GNU_Readline) library:
 
     $ cc -o lisp lisp.c
 
@@ -165,17 +163,17 @@ returns `#t` if `x` is not `()`.  Otherwise, returns `()` (empty list means fals
 
     (cond (x1 y1) (x2 y2) ... (xk yk))
 
-returns the value of `y` corresponding to the first `x` that is not `()` (meaning not false, i.e. true).  If the `y` are multiple expressions, then all expressions are evaluated and the value of the last expression is returned.
+returns the value of `y` corresponding to the first `x` that is not `()` (meaning not false, i.e. true.)  If an `y` is missing then `y` defaults to `()`.  If the `y` are multiple expressions, then all such expressions are evaluated and the value of the last expression is returned.
 
     (if x y z)
 
-if `x` is not `()` (meaning not false, i.e. true), then return `y` else return `z`.  If `z` is missing then `()` is returned.  If `z` are multiple expressions, then all expressions are evaluated and the value of the last expression is returned.
+if `x` is not `()` (meaning not false, i.e. true), then return `y` else return `z`.  If `z` is missing then `()` is returned.  If `z` are multiple expressions, then all such expressions are evaluated and the value of the last expression is returned.
 
 ### Lambdas
 
     (lambda <parameters> <expr>)
 
-returns an anonymous function "closure" with a list of parameters and an expression as its body.  For example, `(lambda (n) (* n n))` squares its argument.  The parameters may be a single name not in a list to pass all arguments as a named list.  For example, `(lambda args args)` returns its arguments as a list.  The pair dot may be used to indicate the rest of the arguments.  For example, `(lambda (f x . args) (f . args))` applies a function argument`f` to the arguments `args`, while ignoring `x`.
+returns an anonymous function "closure" with a list of parameters and an expression as its body.  For example, `(lambda (n) (* n n))` squares its argument.  The parameters of a lambda may be a single name (not placed in a list) to pass all arguments as a named list.  For example, `(lambda args args)` returns its arguments as a list.  The pair dot may be used to indicate the rest of the arguments.  For example, `(lambda (f x . args) (f . args))` applies a function argument`f` to the arguments `args`, while ignoring `x`.  The closure includes the lexical scope of the lambda, i.e. local names defined in the outer scope can be used in the body.  For example, `(lambda (f x) (lambda args (f x . args)))` is a function that takes function `f` and argument `x` to return a [curried function](https://en.wikipedia.org/wiki/Currying).
 
 ### Macros
 
@@ -209,7 +207,7 @@ evaluates `y` with a local scope of bindings for symbols `v` bound to the values
 
 evaluates `y` with a local scope of recursive bindings for symbols `v` bound to the values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list, but allow multiple `y` (you can use `begin` instead).
 
-If the `x` are multiple expressions, then all expressions are evaluated and the value of the last expression is bound to the corresponding `v`.
+If an `x` is missing then `x` defaults to `()`.  If the `x` are multiple expressions, then all such expressions are evaluated and the value of the last expression is bound to the corresponding `v`.
 
 ### Assignments
 
