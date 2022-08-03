@@ -94,7 +94,7 @@ returns a string concatenation of the specified symbols, strings and/or numbers.
 
 ### Lists
 
-Lists are code and data in Lisp.  Syntactically, a dot may be used for the last list element to construct a pair rather than a list that ends with a nil value, written as `()` the empty list.  For example, `'(1 . 2)` is a pair, whereas `'(1 2)` is a list.  By the nature of linked lists, a list after a dot creates a list, not a pair.  For example, `'(1 . (2 . ()))` is the same as `'(1 2)`.
+Lists are code and data in Lisp.  Syntactically, a dot may be used for the last list element to construct a pair rather than a list.  For example, `'(1 . 2)` is a pair, whereas `'(1 2)` is a list.  By the nature of linked lists, a list after a dot creates a list, not a pair.  For example, `'(1 . (2 . ()))` is the same as `'(1 2)`.  Note that lists form a chain of pairs ending in a `()` nil.  
 
 ### Function calls
 
@@ -220,7 +220,7 @@ assigns a globally or locally-bound symbol a new value.
 
 assign a pair a new car or cdr value, respectively.
 
-### IO
+### Input and output
 
     (load <name>)
 
@@ -264,7 +264,7 @@ sequentially evaluates expressions, returns the value of the last expression.
 
 while `x` is not `()` (meaning true), evaluates expressions `y`.  Returns the last value of `yk` or `()` when the loop never ran.
 
-### Introspection
+### Type checking
 
     (type <expr>)
 
