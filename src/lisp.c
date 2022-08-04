@@ -388,9 +388,8 @@ char get() {
         free(line);
       line = NULL;
       BREAK_ON;                                 /* enable interrupt */
-      while (!line)
-        if (!(ptr = line = readline(ps)))       /* read new line and set ptr to start of the line */
-          freopen("/dev/tty", "r", stdin);      /* try again when line is NULL after EOF by CTRL-D */
+      while (!(ptr = line = readline(ps)))      /* read new line and set ptr to start of the line */
+        freopen("/dev/tty", "r", stdin);        /* try again when line is NULL after EOF by CTRL-D */
       add_history(line);                        /* make it part of the history */
       strcpy(ps, "?");                          /* change prompt to ? */
     }
