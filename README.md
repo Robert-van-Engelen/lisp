@@ -494,7 +494,7 @@ No additional code changes are needed to the interpreter.  The `sweep` and `gc` 
 
 ### How temporary Lisp data is protected from recycling
 
-One small challenge arises when we recycle unused Lisp data.  Whenever we construct temporary data we do not want the data to be accidentily garbage collected.  Note that the `cons` function automatically protects its arguments `x` and `y`.  The `pair` function is also safe.  However, we must protect temporary data when invoking other functions that construct Lisp data, such as `eval` and `evlis`.  To protect temporary Lisp data we should push it on the stack: 
+One small challenge arises when we recycle unused Lisp data.  Whenever we construct temporary data we do not want the data to be accidentily garbage collected.  The `cons` function automatically protects its arguments `x` and `y`.  The `pair` function is also safe.  However, we must protect temporary data when invoking other functions that construct Lisp data, such as `eval` and `evlis`.  To protect temporary Lisp data we push it on the stack and pop it later:
 
     /* push x on the stack to protect it from being recycled, returns pointer to cell pair (e.g. to update the value) */
     L *push(L x) {
@@ -521,7 +521,7 @@ In the REPL we can simply unwind the entire stack:
       sp = i;
     }
 
-For example, the `let` primitive extends the list of local bindings `e` with new pairs of bindings.  It then calls `eval` to evaluate the `let` body:
+For example, the `let` primitive extends the list of bindings `e` with new pairs of bindings.  It then calls `eval` to evaluate the `let` body:
 
     L f_let(L t, L e) {
       L x, *p;
@@ -532,11 +532,11 @@ For example, the `let` primitive extends the list of local bindings `e` with new
       return x;
     }
 
-Note that `push` protects the list of bindings pointed to by `p`.  The bindings `e` are assumed to be protected already, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  The arguments to `cons` and `pair` are automatically protected by these functions, which does not suffice in this example to protect the list `*p` when `eval` is called.
+Note that `push` protects the list of bindings pointed to by `p`.  The bindings `e` passed to `f_let` are already protected earlier, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  We protect `p = push(e)` then `*p` is updated to protect the new bindings added to the list.  While the arguments to `cons` and `pair` are automatically protected by these functions, this does not suffice to protect the list when `eval` is called and thus requires protecting `*p`.
 
 ### Memory debugging
 
-To help with debugging garbage collection, compile lisp.c with `-DDEBUG` to force garbage collection after each pair construction and atom/string allocation.  This helps to identify temporary Lisp data that may get removed by the collector by accident and therefore should have been protected.  Note that this configuration significantly slows down the interpreter.
+To help with debugging garbage collection and find memory management bugs, compile lisp.c with `-DDEBUG` to force garbage collection after each pair construction and atom/string allocation.  This helps to identify temporary Lisp data that may get removed by the collector by accident and therefore should have been protected.  Note that this configuration significantly slows down the interpreter.
 
 The following `dump` function displays the contents of the pool, e.g. when added to the REPL.  To avoid getting huge dumps, change `P` to a small number (e.g. 64, 128 or 256) and comment out some of the `prim[]` entries and remove the init.lisp input to make sure the important primitives and code you want to check fit in memory.
 
