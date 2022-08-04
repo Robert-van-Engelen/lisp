@@ -509,7 +509,7 @@ One small challenge arises when we recycle unused Lisp data.  Whenever we constr
       return &cell[sp];
     }
 
-Later we should pop the value from the stack:
+Since `push` returns a pointer to the protected value, we can update this cell by dereferencing the pointer.  This allows us to efficiently contruct lists without having the push every list value on the stack, see the example below.  Later we pop the value from the stack:
 
     /* pop from the stack and return value */
     L pop() {

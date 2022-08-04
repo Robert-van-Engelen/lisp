@@ -600,7 +600,7 @@ L f_begin(L t, L e) {
 }
 
 L f_while(L t, L e) {
-  L s, x = nil;
+  L x = nil;
   while (!not(eval(car(t), e)))
     x = f_begin(cdr(t), e);
   return x;
