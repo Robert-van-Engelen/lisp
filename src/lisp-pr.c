@@ -587,7 +587,8 @@ L f_lt(L t, L *_) {
 }
 
 L f_eq(L t, L *_) {
-  return equ(car(t), car(cdr(t))) ? tru : nil;
+  L x = car(t), y = car(cdr(t));
+  return (T(x) == STRG && T(y) == STRG ? !strcmp(A+ord(x), A+ord(y)) : equ(x, y)) ? tru : nil;
 }
 
 L f_not(L t, L *_) {
@@ -926,13 +927,11 @@ L step(L x, L e) {
 L eval(L x, L e) {
   L y;
   if (!tr)
-    return step(x, e);
+    return step(x, e);                          /* eval() -> step() tail call when not tracing */
   y = step(x, e);
-  printf("%u: ", N-sp);
-  print(x);
-  printf(" => ");
-  print(y);
-  if (tr > 1)
+  printf("%u: ", N-sp); print(x);               /* <stack depth>: unevaluated expression */
+  printf(" => ");       print(y);               /* => value of the expression */
+  if (tr > 1)                                   /* wait for ENTER key or other CTRL */
     while (getchar() >= ' ')
       continue;
   else

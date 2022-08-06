@@ -162,7 +162,7 @@ returns `#t` (true) if numbers `n1` < `n2`.  Otherwise, returns `()` (empty list
 
     (eq? x y)
 
-returns `#t` (true) if values `x` and `y` are identical.  Otherwise, returns `()` (empty list means false).  Numbers and symbols with the same value or name are always identical, but strings and non-empty lists may or may not be identical even when their values are the same.
+returns `#t` (true) if values `x` and `y` are identical.  Otherwise, returns `()` (empty list means false).  Numbers, symbols and strings with the same value or contents are always identical, but non-empty lists may or may not be identical even when their values are the same.
 
     (not x)
 
@@ -215,6 +215,8 @@ returns the value associated with the quoted symbol in the given environment.
 returns the current environment.  When executed in the REPL, returns the global environment.
 
 ### Locals
+
+Locals are declared with the following `let` special forms.  These forms differ slightly in syntax from other Lisp and Scheme implementations, with the aim to make `let` forms more intuitive to use (I spent a lot of time debugging my student's Scheme programs as many of them mistakingly forgot to use a list of pairs in the `let` forms, so it's time to get rid of that once and for all, but if you don't like it then change this Lisp implementation as you wish):
 
     (let (v1 x1) (v2 x2) ... (vk xk) y)
     (let* (v1 x1) (v2 x2) ... (vk xk) y)
@@ -295,7 +297,7 @@ returns a value between 0 and 9 to identify the type of `<expr>`.
 
 exits Lisp.
 
-## Library functions
+## Library functions and macros
 
 Additional Lisp functions and macros are defined in [init.lisp](src/init.lisp).
 
@@ -315,7 +317,7 @@ returns `#t` if `x` is of a specific type or structure.
 
     (equal? x y)
 
-returns `#t` if values `x` and `y` are equal.
+returns `#t` if values `x` and `y` are identical or structurally equal.
 
     (list x1 x2 ... xn)
 
