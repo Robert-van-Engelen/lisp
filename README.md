@@ -51,16 +51,6 @@ Tail-recursive calls and tail calls in general are optimized.  For example, `(fo
 
 Tail call optimization is applied to the last function evaluated when its return value is not used as an argument to another function to operate on.  Tail call optimization is also applied to the tail calls made through the `begin`, `cond`, `if`, `let`, `let*`, `letrec`, and `letrec*` special forms.
 
-## Compilation
-
-Just one source code file [lisp.c](src/lisp.c) to compile:
-
-    $ cc -o lisp lisp.c -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
-
-Without CTRL-C to break and without the [GNU readline](https://en.wikipedia.org/wiki/GNU_Readline) library:
-
-    $ cc -o lisp lisp.c
-
 ## Running Lisp
 
 Initialization imports `init.lisp` first, when located in the working directory.  Otherwise this step is skipped.  You can load Lisp source files with `(load "name.lisp")`, for example
@@ -84,6 +74,38 @@ Initialization imports `init.lisp` first, when located in the working directory.
     5618+1904>
 
 The prompt displays the number of free cons pair cells + free stack cells available.  The heap and stack are located in the same memory space.  Therefore, the second number is also indicative of the size of the heap space available to store new atoms and strings.
+
+## Execution tracing
+
+An execution trace displays the stack depth with each evaluation step:
+
+    6452+1933>(trace)
+    1
+    6452+1933>((curry + 1) 2 3)
+    7: curry => {1542}
+    7: + => <+>
+    7: 1 => 1
+    7: lambda => <lambda>
+    4: (curry + 1) => {1762}
+    5: 2 => 2
+    5: 3 => 3
+    4: f => <+>
+    5: x => 1
+    5: args => (2 3)
+    1: ((curry + 1) 2 3) => 6
+    6
+
+Note: the origin of a tail call may not be displayed.
+
+## Compilation
+
+Just one source code file [lisp.c](src/lisp.c) to compile:
+
+    $ cc -o lisp lisp.c -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
+
+Without CTRL-C to break and without the [GNU readline](https://en.wikipedia.org/wiki/GNU_Readline) library:
+
+    $ cc -o lisp lisp.c
 
 ## Lisp language features
 
@@ -527,7 +549,7 @@ Since the pool and stack share the same `cell[]` array, the linked lists are sim
 
 ### Alternative: non-recursive mark-sweep garbage collection using pointer reversal
 
-Non-recursive mark-sweep with pointer reversal has the advantage that no additional memory (a stack) is required.  This is especially important when the call stack size is limited in practice.  After all, a failure in garbage collection is not recoverable.  By constrast, recursion in Lisp `eval` pushes values on the Lisp cell stack and is therefore practically limited.  When the Lisp stack is full an recoverable exception is thrown.
+Non-recursive mark-sweep with pointer reversal has the advantage that no additional memory (a stack) is required.  This is especially important when the call stack size is limited in practice.  After all, a failure in garbage collection is not recoverable.  By constrast, recursion in Lisp `eval` pushes values on the Lisp cell stack and is therefore practically limited.  When the Lisp stack is full a recoverable exception is thrown.
 
 I couldn't find an acceptable example of a mark-sweep garbage collector using pointer reversal.  After tinkering a bit with different variations of the same theme, I came up with the following algorithm and implementation that is both elegant and efficient:
 
@@ -606,7 +628,7 @@ For example, the `let` special form extends the list of bindings pointed to by `
       return T(t) == NIL ? nil : car(t);
     }
 
-Note that `push` protects the list of bindings pointed to by `p`.  The bindings `*e` passed to `f_let` are already protected by the interpreter, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  We protect `p = push(*e)` and we update stack cell `*p` to protect the new bindings added to the list.  While the arguments to `cons` and `pair` are automatically protected by these functions, this does not suffice to protect the list when `eval` is called and thus requires protecting `*p`.
+Note that `push` protects the list of bindings pointed to by `p`.  The bindings `*e` passed to `f_let` are already protected by the interpreter, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  We create a protected cell on the stack pointed to by `p` and initialized to `*e` with `p = push(*e)`.  We later update stack cell `*p` to protect the new bindings added to the list.  While the arguments to `cons` and `pair` are automatically protected by these functions, this does not suffice to protect the list when `eval` is called and thus requires protecting `*p`.
 
 Note that there is more going on here.  Because the `let` forms support tail-recursive calls, we return the expression `car(t)` to evaluate next by the interpreter in its evaluation loop.  Before we return, the scope `*e` is extended to `*p` with the local bindings.
 
@@ -641,5 +663,3 @@ The following `dump` function displays the contents of the pool, e.g. when added
       }
       printf("\nenv=%u fp=%u hp=%u sp=%u\n", ord(env), fp, hp, sp);
     }
-
-## 
