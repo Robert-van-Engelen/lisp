@@ -101,11 +101,11 @@ Note: the origin of a tail call may not be displayed.
 
 Just one source code file [lisp.c](src/lisp.c) to compile:
 
-    $ cc -o lisp lisp.c -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
+    $ cc -o lisp lisp.c -O2 -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
 
 Without CTRL-C to break and without the [GNU readline](https://en.wikipedia.org/wiki/GNU_Readline) library:
 
-    $ cc -o lisp lisp.c
+    $ cc -o lisp lisp.c -O2
 
 ## Lisp language features
 
