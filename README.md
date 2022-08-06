@@ -162,7 +162,7 @@ returns `#t` (true) if numbers `n1` < `n2`.  Otherwise, returns `()` (empty list
 
     (eq? x y)
 
-returns `#t` (true) if values `x` and `y` are identical.  Otherwise, returns `()` (empty list means false).  Numbers and atoms with the same value are always identical, but strings and non-empty lists may not be identical even when their values are the same.
+returns `#t` (true) if values `x` and `y` are identical.  Otherwise, returns `()` (empty list means false).  Numbers and symbols with the same value or name are always identical, but strings and non-empty lists may or may not be identical even when their values are the same.
 
     (not x)
 
@@ -298,6 +298,53 @@ exits Lisp.
 ## Library functions
 
 Additional Lisp functions and macros are defined in [init.lisp](src/init.lisp).
+
+    (defun <symbol> <parameters> <expr>)
+
+defines a named function with parameters and a function body.  A shorthand for `(define <symbol> (lambda <parameters> <expr>))`.
+
+    (null? x)
+    (number? x)
+    (symbol? x)
+    (string? x)
+    (pair? x)
+    (atom? x)
+    (list? x)
+
+returns `#t` if `x` is of a specific type or structure.
+
+    (equal? x y)
+
+returns `#t` if values `x` and `y` are equal.
+
+    (list x1 x2 ... xn)
+
+returns the list of evaluated `x1`, `x2`, ... `xn`.
+
+    (seq n1 n2)
+    (range n1 n2 [n3])
+
+returns a list of numbers `n1` up to but excluding `n2`, with an optional step `n3` when specified.
+
+    (length t)
+    (append t1 t2)
+    (reverse t)
+    (member x t)
+    (foldr f x t)
+    (foldl f x t)
+    (min t)
+    (max t)
+    (filter f t)
+    (all? f t)
+    (any? f t)
+    (map f t1 t2 ... tn)
+    (zip t1 t2 ... tn)
+
+non-destructive list operations on lists `t` with functions `f` and values `x`.
+
+    (Y f)
+
+The fixed-point [Y combinator](https://en.wikipedia.org/wiki/Fixed-point_combinator#Fixed-point_combinators_in_lambda_calculus).
 
 ## Lisp memory management
 
