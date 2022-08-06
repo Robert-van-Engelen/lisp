@@ -591,7 +591,7 @@ In the REPL we can simply unwind the entire stack:
       sp = i;
     }
 
-For example, the `let` primitive extends the list of bindings `e` with new pairs of bindings.  It then calls `eval` to evaluate the `let` body:
+For example, the `let` special form extends the list of bindings `e` with new pairs of bindings for locals:
 
     L f_let(L t, L *e) {
       L x, *p;
