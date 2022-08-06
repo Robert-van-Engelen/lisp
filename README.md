@@ -7,7 +7,7 @@ A quick glance at this small Lisp interpreter's features:
 - Lisp with _floating point_, _strings_, proper _closures_, and _macros_
 - over _40 built-in Lisp primitives_
 - _lexically-scoped_ locals, like tinylisp
-- proper _tail recursion_, including tail calls through `begin`, `cond`, `if`, `let`, `let*`, `letrec`, `letrec*`
+- proper _tail recursion_, including tail calls through `begin`, `or`, `and`, `cond`, `if`, `let`, `let*`, `letrec`, `letrec*`
 - _exceptions_ and error handling with safe return to REPL after an error
 - _break with CTRL-C_ to return to the REPL (optional)
 - REPL with GNU _readline_ for convenient Lisp input (optional)
@@ -20,7 +20,7 @@ A quick glance at this small Lisp interpreter's features:
 - easily _customizable and extensible_ to add new special features
 - _integrates with C and C++_ code by calling C functions for Lisp primitives, for example to embed a Lisp interpreter
 
-I've documented this project's C source code extensively to explain the inner workings of the interpreter.  This Lisp interpreter includes a [tracing garbage collector](https://en.wikipedia.org/wiki/Tracing_garbage_collection) to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection).  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, I've included a [mark-sweep with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) as an alternative method to eliminate recursive calls.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) removes unused atoms and strings from the heap.
+I've documented this project's C source code extensively to explain the inner workings of the interpreter.  This Lisp interpreter includes a [tracing garbage collector](https://en.wikipedia.org/wiki/Tracing_garbage_collection) to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection).  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, I've included a small and efficient [mark-sweep method with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) as an alternative method to eliminate recursive calls.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) removes unused atoms and strings from the heap.
 
 ## Is it really Lisp?
 
@@ -49,7 +49,7 @@ Tail-recursive calls are optimized.  For example, `(forever inf)` infinite recur
     forever
     ...
 
-Tail recursion optimization is applied to the last function evaluated when its return value is not used as an argument to another function.  Tail recursion optimization is also applied to the tail calls made through the `begin`, `cond`, `if`, `let`, `let*`, `letrec`, and `letrec*` special forms.
+Tail recursion optimization is applied to the last function evaluated when its return value is not used as an argument to another function.  Tail recursion optimization is also applied to the tail calls made through the `begin`, `or`, `and`, `cond`, `if`, `let`, `let*`, `letrec`, and `letrec*` special forms.
 
 ## Compilation
 
