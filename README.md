@@ -7,7 +7,7 @@ A quick glance at this small Lisp interpreter's features:
 - Lisp with _floating point_, _strings_, proper _closures_, and _macros_
 - over _40 built-in Lisp primitives_
 - _lexically-scoped_ locals, like tinylisp
-- proper _tail recursion_, including tail calls through `begin`, `or`, `and`, `cond`, `if`, `let`, `let*`, `letrec`, `letrec*`
+- proper _tail recursion_, including tail calls through `begin`, `cond`, `if`, `let`, `let*`, `letrec`, `letrec*`
 - _exceptions_ and error handling with safe return to REPL after an error
 - _break with CTRL-C_ to return to the REPL (optional)
 - REPL with GNU _readline_ for convenient Lisp input (optional)
@@ -49,7 +49,7 @@ Tail-recursive calls are optimized.  For example, `(forever inf)` infinite recur
     forever
     ...
 
-Tail recursion optimization is applied to the last function evaluated when its return value is not used as an argument to another function.  Tail recursion optimization is also applied to the tail calls made through the `begin`, `or`, `and`, `cond`, `if`, `let`, `let*`, `letrec`, and `letrec*` special forms.
+Tail recursion optimization is applied to the last function evaluated when its return value is not used as an argument to another function.  Tail recursion optimization is also applied to the tail calls made through the `begin`, `cond`, `if`, `let`, `let*`, `letrec`, and `letrec*` special forms.
 
 ## Compilation
 

@@ -578,16 +578,16 @@ L f_not(L t, L *_) {
 
 L f_or(L t, L *e) {
   L x = nil;
-  while (more(t) && not(x = eval(car(t), *e)))
+  while (T(t) != NIL && not(x = eval(car(t), *e)))
     t = cdr(t);
-  return T(t) == NIL ? nil : car(t);
+  return x;
 }
 
 L f_and(L t, L *e) {
   L x = nil;
-  while (more(t) && !not(x = eval(car(t), *e)))
+  while (T(t) != NIL && !not(x = eval(car(t), *e)))
     t = cdr(t);
-  return T(t) == NIL ? nil : car(t);
+  return x;
 }
 
 L f_begin(L t, L *e) {
@@ -794,8 +794,8 @@ struct {
   {"<",        f_lt,      NORMAL},              /* (< n1 n2) => #t if n1<n2 else () */
   {"eq?",      f_eq,      NORMAL},              /* (eq? x y) => #t if x==y else () */
   {"not",      f_not,     NORMAL},              /* (not x) => #t if x==() else ()t */
-  {"or",       f_or,      SPECIAL|TAILCALL},    /* (or x1 x2 ... xk) => #t if any x1 is not () else () */
-  {"and",      f_and,     SPECIAL|TAILCALL},    /* (and x1 x2 ... xk) => #t if all x1 are not () else () */
+  {"or",       f_or,      SPECIAL},             /* (or x1 x2 ... xk) => #t if any x1 is not () else () */
+  {"and",      f_and,     SPECIAL},             /* (and x1 x2 ... xk) => #t if all x1 are not () else () */
   {"begin",    f_begin,   SPECIAL|TAILCALL},    /* (begin x1 x2 ... xk) => xk -- evaluates x1, x2 to xk */
   {"while",    f_while,   SPECIAL},             /* (while x y1 y2 ... yk) -- while x is not () evaluate y1, y2 ... yk */
   {"cond",     f_cond,    SPECIAL|TAILCALL},    /* (cond (x1 y1) (x2 y2) ... (xk yk)) => yi for first xi!=() */

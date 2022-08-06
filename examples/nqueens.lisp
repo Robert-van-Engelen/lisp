@@ -1,6 +1,8 @@
-; N-queens example adapted from:
-; https://github.com/rui314/minilisp/blob/master/examples/nqueens.lisp
+; n-queens example
 ; requires init.lisp
+; loosely based on: https://github.com/rui314/minilisp/blob/master/examples/nqueens.lisp
+
+; supporting functions
 
 (define nth
     (lambda (t n)
@@ -14,7 +16,9 @@
             t
             (nth-tail (cdr t) (- n 1)))))
 
-(define iota (lambda (n) (seq 0 n)))
+(define iota
+    (lambda (n)
+        (seq 0 n)))
 
 (define make-list
     (lambda (n x)
@@ -30,7 +34,7 @@
                 (for-each f (cdr t)))
             ())))
 
-; N-queens solver
+; n-queens solver
 
 (define make-board
     (lambda (size)
