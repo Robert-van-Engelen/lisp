@@ -68,7 +68,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     $ ./lisp
     ...
     defun
-    6568+1934>(load "nqueens.lisp")
+    6570+1934>(load "nqueens.lisp")
     ...
     (- - - - - - - @)
     (- - - @ - - - -)
@@ -81,7 +81,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
 
     done
     ()
-    5734+1906>
+    5736+1906>
 
 The prompt displays the number of free cons pair cells + free stack cells available.  The heap and stack are located in the same memory space.  Therefore, the second number is also indicative of the size of the heap space available to store new atoms and strings.
 
@@ -564,7 +564,7 @@ No additional code changes are needed to the interpreter.  The `sweep` and `gc` 
 
 ### How temporary Lisp data is protected from recycling
 
-One small challenge arises when we recycle unused Lisp data.  Whenever we construct temporary data we do not want the data to be accidentily garbage collected.  The `cons` function automatically protects its arguments `x` and `y`.  The `pair` function is also safe.  However, we must protect temporary data when invoking other functions that construct Lisp data, such as `eval` and `evlis`.  To protect temporary Lisp data we push it on the stack and pop it later:
+One small challenge arises when we recycle unused Lisp data.  Whenever we construct temporary data by calling the corresponding C functions `atom`, `string`, `cons` and `pair`, we do not want the data to be accidentily garbage collected.  The `cons` and `pair` C functions automatically protect its arguments while the temporary data is constructed, but not afterwards.  We must protect temporary data when invoking other functions that construct Lisp data, such as `eval` and `evlis`.  To protect temporary Lisp data we push it on the stack and pop it later:
 
     /* push x on the stack to protect it from being recycled, returns pointer to cell pair (e.g. to update the value) */
     L *push(L x) {
@@ -577,7 +577,7 @@ One small challenge arises when we recycle unused Lisp data.  Whenever we constr
       return &cell[sp];
     }
 
-Since `push` returns a pointer to the protected value, we can update this cell by dereferencing the pointer.  This allows us to efficiently contruct lists without having the push every list value on the stack, see the example below.  Later we pop the value from the stack:
+Since `push` returns a pointer to the protected value, we can update this stack cell by dereferencing the pointer.  This allows us to efficiently contruct lists without having the push every list value on the stack, as is illustrated by the example further below.  Later we pop the value from the stack:
 
     /* pop from the stack and return value */
     L pop() {
@@ -591,7 +591,7 @@ In the REPL we can simply unwind the entire stack:
       sp = i;
     }
 
-For example, the `let` special form extends the list of bindings `e` with new pairs of bindings for locals:
+For example, the `let` special form extends the list of bindings pointed to by `e` with new pairs of bindings for locals:
 
     L f_let(L t, L *e) {
       L x, *p;
@@ -602,7 +602,18 @@ For example, the `let` special form extends the list of bindings `e` with new pa
       return T(t) == NIL ? nil : car(t);
     }
 
-Note that `push` protects the list of bindings pointed to by `p`.  The bindings `*e` passed to `f_let` are already protected earlier, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  We protect `p = push(*e)` and we update `*p` to protect the new bindings added to the list.  While the arguments to `cons` and `pair` are automatically protected by these functions, this does not suffice to protect the list when `eval` is called and thus requires protecting `*p`.  There is more going on here.  Because the `let` forms support tail-recursive calls, we return the expression `car(t)` to evaluate next by the interpreter in its evaluation loop.  Before we return, the scope `*e` is extended to `*p` with the local bindings.
+Note that `push` protects the list of bindings pointed to by `p`.  The bindings `*e` passed to `f_let` are already protected by the interpreter, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  We protect `p = push(*e)` and we update stack cell `*p` to protect the new bindings added to the list.  While the arguments to `cons` and `pair` are automatically protected by these functions, this does not suffice to protect the list when `eval` is called and thus requires protecting `*p`.
+
+Note that there is more going on here.  Because the `let` forms support tail-recursive calls, we return the expression `car(t)` to evaluate next by the interpreter in its evaluation loop.  Before we return, the scope `*e` is extended to `*p` with the local bindings.
+
+A `push` can also be used to protect new symbols and strings added the heap by the `string` C function:
+
+    L name = string("John Doe");
+    push(name);
+    ... do some work, including eval() ...
+    pop();
+
+The string contents may be moved around on the heap by the garbage collector.  `A+ord(name)` points to the current location of the \0-terminated string.  By contrast, the cons pair cells of lists are never moved by the garbage collector.
 
 ### Memory debugging
 
