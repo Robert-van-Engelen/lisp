@@ -593,16 +593,16 @@ In the REPL we can simply unwind the entire stack:
 
 For example, the `let` primitive extends the list of bindings `e` with new pairs of bindings.  It then calls `eval` to evaluate the `let` body:
 
-    L f_let(L t, L e) {
+    L f_let(L t, L *e) {
       L x, *p;
-      for (p = push(e); let(t); t = cdr(t))
-        *p = pair(car(car(t)), eval(car(cdr(car(t))), e), *p);
-      x = eval(car(t), *p);
+      for (p = push(*e); more(t); t = cdr(t))
+        *p = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *p);
+      *e = *p;
       pop();
-      return x;
+      return T(t) == NIL ? nil : car(t);
     }
 
-Note that `push` protects the list of bindings pointed to by `p`.  The bindings `e` passed to `f_let` are already protected earlier, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  We protect `p = push(e)` then `*p` is updated to protect the new bindings added to the list.  While the arguments to `cons` and `pair` are automatically protected by these functions, this does not suffice to protect the list when `eval` is called and thus requires protecting `*p`.
+Note that `push` protects the list of bindings pointed to by `p`.  The bindings `*e` passed to `f_let` are already protected earlier, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  We protect `p = push(*e)` and we update `*p` to protect the new bindings added to the list.  While the arguments to `cons` and `pair` are automatically protected by these functions, this does not suffice to protect the list when `eval` is called and thus requires protecting `*p`.  There is more going on here.  Because the `let` forms support tail-recursive calls, we return the expression `car(t)` to evaluate next by the interpreter in its evaluation loop.  Before we return, the scope `*e` is extended to `*p` with the local bindings.
 
 ### Memory debugging
 
