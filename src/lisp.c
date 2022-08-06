@@ -1,15 +1,16 @@
 /* lisp.c with NaN boxing by Robert A. van Engelen 2022 BSD-3 license
-   - double floating point, atoms, strings, lists, closures, macros
-   - 41 built-in Lisp primitives
-   - lexically-scoped locals in lambda, let, let*, letrec, letrec*
-   - exceptions and error handling with safe return to REPL after an error
-   - execution tracing to display Lisp evaluation steps
-   - load Lisp source code files
-   - REPL with readline (compile: lisp.c -DHAVE_READLINE_H -lreadline)
-   - break execution with CTRL-C (compile: lisp.c -DHAVE_SIGNAL_H)
-   - mark-sweep garbage collector to recycle unused cons pair cells
-   - compacting garbage collector to recycle unused atoms and strings
-   - Lisp memory is a single cell[] array, no malloc() and free() calls */
+        - double precision floating point, symbols, strings, lists, proper closures, and macros
+        - over 40 built-in Lisp primitives
+        - lexically-scoped locals in lambda, let, let*, letrec, letrec*
+        - proper tail-recursion, including tail calls through begin, cond, if, let, let*, letrec, letrec*
+        - exceptions and error handling with safe return to REPL after an error
+        - break with CTRL-C to return to the REPL (compile: lisp.c -DHAVE_SIGNAL_H)
+        - REPL with readline (compile: lisp.c -DHAVE_READLINE_H -lreadline)
+        - load Lisp source code files
+        - execution tracing to display Lisp evaluation steps
+        - mark-sweep garbage collector to recycle unused cons pair cells
+        - compacting garbage collector to recycle unused atoms and strings
+        - Lisp memory is a single cell[] array, no malloc() and free() calls */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -347,9 +348,9 @@ I not(L x) {
   return T(x) == NIL;
 }
 
-/* let(x) is nonzero if x is a Lisp let/let* pair */
-I let(L x) {
-  return T(x) != NIL && (x = cdr(x), T(x) != NIL);
+/* more(t) is nonzero if list t has more than one item, i.e. is not empty or a singleton list */
+I more(L t) {
+  return T(t) != NIL && (t = cdr(t), T(t) != NIL);
 }
 
 /*----------------------------------------------------------------------------*\
@@ -508,194 +509,185 @@ L evlis(L t, L e) {
   return pop();                                 /* pop new list and return it */
 }
 
-L f_type(L t, L e) {
-  L x = car(evlis(t, e));
+L f_type(L t, L *_) {
+  L x = car(t);
   return T(x) == NIL ? 0 : T(x) >= ATOM && T(x) <= MACR ? T(x) - ATOM + 2 : 1;
 }
 
-L f_eval(L t, L e) {
-  return eval(car(evlis(t, e)), e);
-}
-
-L f_quote(L t, L _) {
+L f_ident(L t, L *_) {
   return car(t);
 }
 
-L f_cons(L t, L e) {
-  return t = evlis(t, e), cons(car(t), car(cdr(t)));
+L f_cons(L t, L *_) {
+  return cons(car(t), car(cdr(t)));
 }
 
-L f_car(L t, L e) {
-  return car(car(evlis(t, e)));
+L f_car(L t, L *_) {
+  return car(car(t));
 }
 
-L f_cdr(L t, L e) {
-  return cdr(car(evlis(t, e)));
+L f_cdr(L t, L *_) {
+  return cdr(car(t));
 }
 
-L f_add(L t, L e) {
-  L n = car(t = evlis(t, e));
+L f_add(L t, L *_) {
+  L n = car(t);
   while (!not(t = cdr(t)))
     n += car(t);
   return num(n);
 }
 
-L f_sub(L t, L e) {
-  L n = not(cdr(t = evlis(t, e))) ? -car(t) : car(t);
+L f_sub(L t, L *_) {
+  L n = not(cdr(t)) ? -car(t) : car(t);
   while (!not(t = cdr(t)))
     n -= car(t);
   return num(n);
 }
 
-L f_mul(L t, L e) {
-  L n = car(t = evlis(t, e));
+L f_mul(L t, L *_) {
+  L n = car(t);
   while (!not(t = cdr(t)))
     n *= car(t);
   return num(n);
 }
 
-L f_div(L t, L e) {
-  L n = not(cdr(t = evlis(t, e))) ? 1./car(t) : car(t);
+L f_div(L t, L *_) {
+  L n = not(cdr(t)) ? 1./car(t) : car(t);
   while (!not(t = cdr(t)))
     n /= car(t);
   return num(n);
 }
 
-L f_int(L t, L e) {
-  L n = car(evlis(t, e));
+L f_int(L t, L *_) {
+  L n = car(t);
   return n < 1e16 && n > -1e16 ? (int64_t)n : n;
 }
 
-L f_lt(L t, L e) {
-  return t = evlis(t, e), car(t) - car(cdr(t)) < 0 ? tru : nil;
+L f_lt(L t, L *_) {
+  return car(t) - car(cdr(t)) < 0 ? tru : nil;
 }
 
-L f_eq(L t, L e) {
-  return t = evlis(t, e), equ(car(t), car(cdr(t))) ? tru : nil;
+L f_eq(L t, L *_) {
+  return equ(car(t), car(cdr(t))) ? tru : nil;
 }
 
-L f_not(L t, L e) {
-  return not(car(evlis(t, e))) ? tru : nil;
+L f_not(L t, L *_) {
+  return not(car(t)) ? tru : nil;
 }
 
-L f_or(L t, L e) {
-  for (; T(t) != NIL; t = cdr(t))
-    if (!not(eval(car(t), e)))
-      return tru;
-  return nil;
-}
-
-L f_and(L t, L e) {
-  for (; T(t) != NIL; t = cdr(t))
-    if (not(eval(car(t), e)))
-      return nil;
-  return tru;
-}
-
-L f_begin(L t, L e) {
+L f_or(L t, L *e) {
   L x = nil;
-  for (; T(t) == CONS; t = cdr(t))
-    x = eval(car(t), e);
+  for (; T(t) != NIL && not(x = eval(car(t), *e)); t = cdr(t))
+    continue;
   return x;
 }
 
-L f_while(L t, L e) {
+L f_and(L t, L *e) {
   L x = nil;
-  while (!not(eval(car(t), e)))
-    x = f_begin(cdr(t), e);
+  for (; T(t) != NIL && !not(x = eval(car(t), *e)); t = cdr(t))
+    continue;
   return x;
 }
 
-L f_cond(L t, L e) {
-  while (T(t) != NIL && not(eval(car(car(t)), e)))
+L f_begin(L t, L *e) {
+  for (; more(t); t = cdr(t))
+    eval(car(t), *e);
+  return T(t) == NIL ? nil : car(t);
+}
+
+L f_while(L t, L *e) {
+  L s, x = nil;
+  while (!not(eval(car(t), *e)))
+    for (s = cdr(t); T(s) != NIL; s = cdr(s))
+      x = eval(car(s), *e);
+  return x;
+}
+
+L f_cond(L t, L *e) {
+  while (T(t) != NIL && not(eval(car(car(t)), *e)))
     t = cdr(t);
   return f_begin(cdr(car(t)), e);
 }
 
-L f_if(L t, L e) {
-  return not(eval(car(t), e)) ? f_begin(cdr(cdr(t)), e) : eval(car(cdr(t)), e);
+L f_if(L t, L *e) {
+  return not(eval(car(t), *e)) ? f_begin(cdr(cdr(t)), e) : car(cdr(t));
 }
 
-L f_lambda(L t, L e) {
-  return closure(car(t), car(cdr(t)), e);
+L f_lambda(L t, L *e) {
+  return closure(car(t), car(cdr(t)), *e);
 }
 
-L f_macro(L t, L e) {
-  return macro(car(t), car(cdr(t)), e);
+L f_macro(L t, L *e) {
+  return macro(car(t), car(cdr(t)), *e);
 }
 
-L f_define(L t, L e) {
-  env = pair(car(t), eval(car(cdr(t)), e), env);
+L f_define(L t, L *e) {
+  env = pair(car(t), eval(car(cdr(t)), *e), env);
   return car(t);
 }
 
-L f_assoc(L t, L e) {
-  t = evlis(t, e);
+L f_assoc(L t, L *_) {
   return assoc(car(t), car(cdr(t)));
 }
 
-L f_env(L t, L e) {
+L f_env(L t, L *e) {
   return env;
 }
 
-L f_let(L t, L e) {
+L f_let(L t, L *e) {
   L x, *p;
-  for (p = push(e); let(t); t = cdr(t))
-    *p = pair(car(car(t)), f_begin(cdr(car(t)), e), *p);
-  x = eval(car(t), *p);
+  for (p = push(*e); more(t); t = cdr(t))
+    *p = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *p);
+  *e = *p;
   pop();
-  return x;
+  return T(t) == NIL ? nil : car(t);
 }
 
-L f_leta(L t, L e) {
-  L x, *p;
-  for (p = push(e); let(t); t = cdr(t))
-    *p = pair(car(car(t)), f_begin(cdr(car(t)), *p), *p);
-  x = eval(car(t), *p);
-  pop();
-  return x;
+L f_leta(L t, L *e) {
+  L x;
+  for (; more(t); t = cdr(t))
+    *e = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *e);
+  return T(t) == NIL ? nil : car(t);
 }
 
-L f_letrec(L t, L e) {
+L f_letrec(L t, L *e) {
   L x, s, *p;
-  for (p = push(e), s = t; let(s); s = cdr(s))
+  for (p = push(*e), s = t; more(s); s = cdr(s))
     *p = pair(car(car(s)), nil, *p);
-  for (s = *p; !equ(s, e); s = cdr(s), t = cdr(t))
-    cell[ord(car(s))+1] = f_begin(cdr(car(t)), *p);
-  x = eval(car(t), *p);
+  for (s = *p; !equ(s, *e); s = cdr(s), t = cdr(t))
+    cell[ord(car(s))+1] = eval(f_begin(cdr(car(t)), p), *p);
+  *e = *p;
   pop();
-  return x;
+  return T(t) == NIL ? nil : car(t);
 }
 
-L f_letreca(L t, L e) {
-  L x, *p;
-  for (p = push(e); let(t); t = cdr(t)) {
-    *p = pair(car(car(t)), nil, *p);
-    cell[ord(car(*p))+1] = f_begin(cdr(car(t)), *p);
+L f_letreca(L t, L *e) {
+  L x;
+  for (; more(t); t = cdr(t)) {
+    *e = pair(car(car(t)), nil, *e);
+    cell[ord(car(*e))+1] = eval(f_begin(cdr(car(t)), e), *e);
   }
-  x = eval(car(t), *p);
-  pop();
-  return x;
+  return T(t) == NIL ? nil : car(t);
 }
 
-L f_setq(L t, L e) {
-  L v = car(t);
-  while (T(e) == CONS && !equ(v, car(car(e))))
-    e = cdr(e);
-  return T(e) == CONS ? cell[ord(car(e))+1] = eval(car(cdr(t)), 1) : ERROR_UNBOUND_SYMBOL;
+L f_setq(L t, L *e) {
+  L v = car(t), d = *e;
+  while (T(d) == CONS && !equ(v, car(car(d))))
+    d = cdr(d);
+  return T(d) == CONS ? cell[ord(car(d))+1] = eval(car(cdr(t)), 1) : ERROR_UNBOUND_SYMBOL;
 }
 
-L f_setcar(L t, L e) {
-  L p = car(t = evlis(t,e));
+L f_setcar(L t, L *_) {
+  L p = car(t);
   return T(p) == CONS ? cell[ord(p)] = car(cdr(t)) : ERROR_NOT_A_PAIR;
 }
 
-L f_setcdr(L t, L e) {
-  L p = car(t = evlis(t,e));
+L f_setcdr(L t, L *_) {
+  L p = car(t);
   return T(p) == CONS ? cell[ord(p)+1] = car(cdr(t)) : ERROR_NOT_A_PAIR;
 }
 
-L f_read(L t, L e) {
+L f_read(L t, L *_) {
   L x;
   char c = see;
   see = ' ';
@@ -705,15 +697,15 @@ L f_read(L t, L e) {
 }
 
 void print(L);
-L f_print(L t, L e) {
-  for (t = evlis(t, e); T(t) != NIL; t = cdr(t))
+L f_print(L t, L *_) {
+  for (; T(t) != NIL; t = cdr(t))
     print(car(t));
   return nil;
 }
 
-L f_write(L t, L e) {
+L f_write(L t, L *_) {
   L x;
-  for (t = evlis(t, e); T(t) != NIL; t = cdr(t)) {
+  for (; T(t) != NIL; t = cdr(t)) {
     x = car(t);
     if (T(x) == STRG)
       fprintf(out, "%s", A+ord(x));
@@ -723,9 +715,9 @@ L f_write(L t, L e) {
   return nil;
 }
 
-L f_string(L t, L e) {
+L f_string(L t, L *_) {
   I i, j; L s;
-  for (i = 0, s = t = evlis(t, e); T(s) != NIL; s = cdr(s)) {
+  for (i = 0, s = t; T(s) != NIL; s = cdr(s)) {
     L x = car(s);
     if ((T(x) & ~(ATOM^STRG)) == ATOM)
       i += strlen(A+ord(x));
@@ -752,81 +744,82 @@ L f_string(L t, L e) {
   return box(STRG, j);
 }
 
-L f_load(L t, L e) {
+L f_load(L t, L *e) {
   L x = f_string(t, e);
   return input(A+ord(x)) ? cons(atom("load"), cons(x, nil)) : ERROR_ARGUMENTS;
 }
 
-L f_trace(L t, L e) {
+L f_trace(L t, L *_) {
   tr = T(t) == NIL ? 1 : car(t);
   return tr;
 }
 
-L f_catch(L t, L e) {
+L f_catch(L t, L *e) {
   L x; I i, savedsp = sp;
   jmp_buf savedjb;
   memcpy(savedjb, jb, sizeof(jb));
   i = setjmp(jb);
-  x = i ? cons(atom("ERR"), i) : eval(car(t), e);
+  x = i ? cons(atom("ERR"), i) : eval(car(t), *e);
   memcpy(jb, savedjb, sizeof(jb));
   sp = savedsp;
   return x;
 }
 
-L f_throw(L t, L e) {
+L f_throw(L t, L *_) {
   longjmp(jb, (I)num(car(t)));
 }
 
-L f_quit(L t, L e) {
+L f_quit(L t, L *_) {
   exit(0);
 }
 
-/* table of Lisp primitives, each has a name s and function pointer f */
+/* table of Lisp primitives, each has a name s, a function pointer f, and an evaluation mode m */
 struct {
   const char *s;
-  L (*f)(L, L);
+  L (*f)(L, L*);
+  enum { NORMAL, SPECIAL, TAILCALL } m;
 } prim[] = {
-  {"type",     f_type},         /* (type x) => <type> value between 0 and 9 */
-  {"eval",     f_eval},         /* (eval <quoted-expr>) => <value-of-expr> */
-  {"quote",    f_quote},        /* (quote <expr>) => <expr> -- protects <expr> from evaluation */
-  {"cons",     f_cons},         /* (cons x y) => (x . y) -- construct a pair */
-  {"car",      f_car},          /* (car <pair>) => x -- "deconstruct" <pair> (x . y) */
-  {"cdr",      f_cdr},          /* (cdr <pair>) => y -- "deconstruct" <pair> (x . y) */
-  {"+",        f_add},          /* (+ n1 n2 ... nk) => n1+n2+...+nk */
-  {"-",        f_sub},          /* (- n1 n2 ... nk) => n1-n2-...-nk or -n1 if k=1 */
-  {"*",        f_mul},          /* (* n1 n2 ... nk) => n1*n2*...*nk */
-  {"/",        f_div},          /* (/ n1 n2 ... nk) => n1/n2/.../nk or 1/n1 if k=1 */
-  {"int",      f_int},          /* (int <integer.frac>) => <integer> */
-  {"<",        f_lt},           /* (< n1 n2) => #t if n1<n2 else () */
-  {"eq?",      f_eq},           /* (eq? x y) => #t if x==y else () */
-  {"or",       f_or},           /* (or x1 x2 ... xk) => #t if any x1 is not () else () */
-  {"and",      f_and},          /* (and x1 x2 ... xk) => #t if all x1 are not () else () */
-  {"not",      f_not},          /* (not x) => #t if x==() else ()t */
-  {"begin",    f_begin},        /* (begin x1 x2 ... xk) => xk -- evaluates x1, x2 to xk */
-  {"while",    f_while},        /* (while x y1 y2 ... yk) -- while x is not () evaluate y1, y2 ... yk */
-  {"cond",     f_cond},         /* (cond (x1 y1) (x2 y2) ... (xk yk)) => yi for first xi!=() */
-  {"if",       f_if},           /* (if x y z) => if x!=() then y else z */
-  {"lambda",   f_lambda},       /* (lambda <parameters> <expr>) => {closure} */
-  {"macro",    f_macro},        /* (macro <parameters> <expr>) => [macro] */
-  {"define",   f_define},       /* (define <symbol> <expr>) -- globally defines <symbol> */
-  {"assoc",    f_assoc},        /* (assoc <quoted-symbol> <environment>) => <value-of-symbol> */
-  {"env",      f_env},          /* (env) => <environment> */
-  {"let",      f_let},          /* (let (v1 x1) (v2 x2) ... (vk xk) y) => y with scope of bindings */
-  {"let*",     f_leta},         /* (let* (v1 x1) (v2 x2) ... (vk xk) y) => y with scope of bindings */
-  {"letrec",   f_letrec},       /* (letrec (v1 x1) (v2 x2) ... (vk xk) y) => y with scope of recursive bindings */
-  {"letrec*",  f_letreca},      /* (letrec* (v1 x1) (v2 x2) ... (vk xk) y) => y with scope of recursive bindings */
-  {"setq",     f_setq},         /* (setq <symbol> x) -- changes value of <symbol> in environment to x */
-  {"set-car!", f_setcar},       /* (set-car! <pair> x) -- changes car of <pair> to x in memory (danger!) */
-  {"set-cdr!", f_setcdr},       /* (set-cdr! <pair> y) -- changes cdr of <pair> to y in memory (danger!) */
-  {"read",     f_read},         /* (read) => <value-of-input> */
-  {"print",    f_print},        /* (print x1 x2 ... xk) => () -- prints the values x1 x2 ... xk */
-  {"write",    f_write},        /* (write x1 x2 ... xk) => () -- same as print but does not quote strings */
-  {"string",   f_string},       /* (string x1 x2 ... xk) => <string> -- concatenates x1 x2 ... xk as a string */
-  {"load",     f_load},         /* (load <name>) -- loads file <name> (an atom or string name) */
-  {"trace",    f_trace},        /* (trace 0) -- trace off / (trace 1) -- trace on / (trace 2) -- trace with keypress */
-  {"catch",    f_catch},        /* (catch <expr>) => <value-of-expr> if no exception else (ERR . n) */
-  {"throw",    f_throw},        /* (throw n) -- raise exception error code n (integer constant > 0) */
-  {"quit",     f_quit},         /* (quit) -- bye! */
+  {"type",     f_type,    NORMAL},              /* (type x) => <type> value between 0 and 9 */
+  {"eval",     f_ident,   NORMAL|TAILCALL},     /* (eval <quoted-expr>) => <value-of-expr> */
+  {"quote",    f_ident,   SPECIAL},             /* (quote <expr>) => <expr> -- protects <expr> from evaluation */
+  {"cons",     f_cons,    NORMAL},              /* (cons x y) => (x . y) -- construct a pair */
+  {"car",      f_car,     NORMAL},              /* (car <pair>) => x -- "deconstruct" <pair> (x . y) */
+  {"cdr",      f_cdr,     NORMAL},              /* (cdr <pair>) => y -- "deconstruct" <pair> (x . y) */
+  {"+",        f_add,     NORMAL},              /* (+ n1 n2 ... nk) => n1+n2+...+nk */
+  {"-",        f_sub,     NORMAL},              /* (- n1 n2 ... nk) => n1-n2-...-nk or -n1 if k=1 */
+  {"*",        f_mul,     NORMAL},              /* (* n1 n2 ... nk) => n1*n2*...*nk */
+  {"/",        f_div,     NORMAL},              /* (/ n1 n2 ... nk) => n1/n2/.../nk or 1/n1 if k=1 */
+  {"int",      f_int,     NORMAL},              /* (int <integer.frac>) => <integer> */
+  {"<",        f_lt,      NORMAL},              /* (< n1 n2) => #t if n1<n2 else () */
+  {"eq?",      f_eq,      NORMAL},              /* (eq? x y) => #t if x==y else () */
+  {"not",      f_not,     NORMAL},              /* (not x) => #t if x==() else ()t */
+  {"or",       f_or,      SPECIAL},             /* (or x1 x2 ... xk) => #t if any x1 is not () else () */
+  {"and",      f_and,     SPECIAL},             /* (and x1 x2 ... xk) => #t if all x1 are not () else () */
+  {"begin",    f_begin,   SPECIAL|TAILCALL},    /* (begin x1 x2 ... xk) => xk -- evaluates x1, x2 to xk */
+  {"while",    f_while,   SPECIAL},             /* (while x y1 y2 ... yk) -- while x is not () evaluate y1, y2 ... yk */
+  {"cond",     f_cond,    SPECIAL|TAILCALL},    /* (cond (x1 y1) (x2 y2) ... (xk yk)) => yi for first xi!=() */
+  {"if",       f_if,      SPECIAL|TAILCALL},    /* (if x y z) => if x!=() then y else z */
+  {"lambda",   f_lambda,  SPECIAL},             /* (lambda <parameters> <expr>) => {closure} */
+  {"macro",    f_macro,   SPECIAL},             /* (macro <parameters> <expr>) => [macro] */
+  {"define",   f_define,  SPECIAL},             /* (define <symbol> <expr>) -- globally defines <symbol> */
+  {"assoc",    f_assoc,   NORMAL},              /* (assoc <quoted-symbol> <environment>) => <value-of-symbol> */
+  {"env",      f_env,     NORMAL},              /* (env) => <environment> */
+  {"let",      f_let,     SPECIAL|TAILCALL},    /* (let (v1 x1) (v2 x2) ... (vk xk) y) => y with scope of bindings */
+  {"let*",     f_leta,    SPECIAL|TAILCALL},    /* (let* (v1 x1) (v2 x2) ... (vk xk) y) => y with scope of bindings */
+  {"letrec",   f_letrec,  SPECIAL|TAILCALL},    /* (letrec (v1 x1) (v2 x2) ... (vk xk) y) => y with recursive scope */
+  {"letrec*",  f_letreca, SPECIAL|TAILCALL},    /* (letrec* (v1 x1) (v2 x2) ... (vk xk) y) => y with recursive scope */
+  {"setq",     f_setq,    SPECIAL},             /* (setq <symbol> x) -- changes value of <symbol> in environment to x */
+  {"set-car!", f_setcar,  NORMAL},              /* (set-car! <pair> x) -- changes car of <pair> to x in memory */
+  {"set-cdr!", f_setcdr,  NORMAL},              /* (set-cdr! <pair> y) -- changes cdr of <pair> to y in memory */
+  {"read",     f_read,    NORMAL},              /* (read) => <value-of-input> */
+  {"print",    f_print,   NORMAL},              /* (print x1 x2 ... xk) => () -- prints the values x1 x2 ... xk */
+  {"write",    f_write,   NORMAL},              /* (write x1 x2 ... xk) => () -- prints without quoting strings */
+  {"string",   f_string,  NORMAL},              /* (string x1 x2 ... xk) => <string> -- string of x1 x2 ... xk */
+  {"load",     f_load,    NORMAL},              /* (load <name>) -- loads file <name> (an atom or string name) */
+  {"trace",    f_trace,   NORMAL},              /* (trace 0) -- off, (trace 1) -- on, (trace 2) -- keypress */
+  {"catch",    f_catch,   SPECIAL},             /* (catch <expr>) => <value-of-expr> if no exception else (ERR . n) */
+  {"throw",    f_throw,   NORMAL},              /* (throw n) -- raise exception error code n (integer constant > 0) */
+  {"quit",     f_quit,    NORMAL},              /* (quit) -- bye! */
   {0}
 };
 
@@ -836,7 +829,10 @@ struct {
 
 /* step-wise evaluate x in environment e, returns value of x */
 L step(L x, L e) {
-  L f, v, *d; I i = sp;                         /* save sp to unwind the stack back to sp afterwards */
+  L *f, v, *d, *z; I i = sp;                    /* save sp to unwind the stack back to sp afterwards */
+  f = push(nil);                                /* protect f from getting GC'ed */
+  d = push(nil);                                /* protect d from getting GC'ed */
+  z = push(nil);                                /* protect z from getting GC'ed */
   while (1) {
     if (T(x) == ATOM) {                         /* if x is an atom, then return its associated value */
       x = assoc(x, e);
@@ -844,32 +840,38 @@ L step(L x, L e) {
     }
     if (T(x) != CONS)                           /* if x is not a list or pair, then return x itself */
       break;
-    f = eval(car(x), e);                        /* the function/primitive is at the head of the list */
+    *f = eval(car(x), e);                       /* the function/primitive is at the head of the list */
     x = cdr(x);                                 /* ... and its actual arguments are the rest of the list */
-    if (T(f) == PRIM) {                         /* if f is a primitive, then apply it to the actual arguments x */
-      x = prim[ord(f)].f(x, e);
-      break;
+    if (T(*f) == PRIM) {                        /* if f is a primitive, then apply it to the actual arguments x */
+      if (!(prim[ord(*f)].m & SPECIAL))         /* if the primitive is NORMAL mode, */
+        x = evlis(x, e);                        /* ... then evaluate actual arguments x */
+      *d = e;
+      x = prim[ord(*f)].f(x, d);                /* call the primitive with arguments x, put return value back in x */
+      e = *d;
+      if (prim[ord(*f)].m & TAILCALL)           /* if the primitive is TAILCALL mode, */
+        continue;                               /* ... then continue evaluating x */
+      break;                                    /* else break to return value x */
     }
-    if ((T(f) & ~(CLOS^MACR)) != CLOS)          /* if f is not a closure or macro, then we cannot apply it */
+    if ((T(*f) & ~(CLOS^MACR)) != CLOS)         /* if f is not a closure or macro, then we cannot apply it */
       ERROR_CANNOT_APPLY;
-    push(f);                                    /* push the evaluated f to protect it from getting GC'ed */
-    if (T(f) == CLOS) {                         /* if f is a closure, then */
-      d = push(cdr(f));                         /* construct an extended local environment d from f's static scope */
+    if (T(*f) == CLOS) {                        /* if f is a closure, then */
+      *d = cdr(*f);                             /* construct an extended local environment d from f's static scope */
       if (T(*d) == NIL)                         /* if f's static scope is nil, then use global env as static scope */
         *d = env;
-      v = car(car(f));                          /* get the parameters v of closure f */
+      v = car(car(*f));                         /* get the parameters v of closure f */
       while (T(v) == CONS && T(x) == CONS) {    /* bind parameters v to argument values x to extend the local scope d */
         *d = pair(car(v), eval(car(x), e), *d); /* add new binding to the front of d */
         v = cdr(v);
         x = cdr(x);
       }
       if (T(v) == CONS) {                       /* condinue binding v if x is after a dot (... . x) by evaluating x */
-        x = *push(eval(x, e));
-        while (T(v) == CONS && T(x) == CONS) {
-          *d = pair(car(v), car(x), *d);        /* add new binding to the front of d */
+        L *y = push(eval(x, e));                /* evaluate x and save its value y to protect it from getting GC'ed*/
+        while (T(v) == CONS && T(*y) == CONS) {
+          *d = pair(car(v), car(*y), *d);       /* add new binding to the front of d */
           v = cdr(v);
-          x = cdr(x);
+          *y = cdr(*y);
         }
+        pop();                                  /* pop protection of y */
         if (T(v) == CONS)                       /* error if insufficient actual arguments x are provided */
           ERROR_ARGUMENTS;
       }
@@ -879,12 +881,12 @@ L step(L x, L e) {
         x = eval(x, e);
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
-      x = cdr(car(f));                          /* the body x of the closure f is to be evaluated next */
-      e = *d;                                   /* the environment e to evaluate x is the local scope d */
+      x = cdr(car(*f));                         /* tail recursion optimization: evaluate the body x of closure f next */
+      *z = e = *d;                              /* the new environment e is d to evaluate x, put in *z to protect */
     }
     else {                                      /* else if f is a macro, then */
-      d = push(env);                            /* construct an extended local environment d from global env */
-      v = car(f);                               /* get the parameters v of macro f */
+      *d = env;                                 /* construct an extended local environment d from global env */
+      v = car(*f);                              /* get the parameters v of macro f */
       while (T(v) == CONS && T(x) == CONS) {    /* bind parameters v to arguments x to extend the local scope d */
         *d = pair(car(v), car(x), *d);
         v = cdr(v);
@@ -894,7 +896,7 @@ L step(L x, L e) {
         ERROR_ARGUMENTS;
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
-      *d = x = eval(cdr(f), *d);                /* evaluated body of the macro to evaluate next, in *d to protect */
+      *z = x = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *z to protect */
     }
   }
   unwind(i);                                    /* unwind the stack to allow GC to collect unused temporaries */

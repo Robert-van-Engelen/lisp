@@ -4,26 +4,27 @@ A logical continuation of the [tinylisp](https://github.com/Robert-van-Engelen/t
 
 A quick glance at this small Lisp interpreter's features:
 
-- Lisp with double floating point, atoms, strings, lists, closures, macros
-- over 40 built-in Lisp primitives
-- lexically-scoped locals, like tinylisp
-- exceptions and error handling with safe return to REPL after an error
-- break with CTRL-C to return to the REPL (optional)
-- REPL with GNU readline (optional)
-- load Lisp source code files
-- execution tracing to display Lisp evaluation steps
-- mark-sweep garbage collector to recycle unused cons pair cells
-- plus an alternative non-recursive garbage collector (mark-sweep using pointer reversal)
-- compacting garbage collector to recycle unused atoms and strings
-- Lisp memory is a single `cell[]` array, no `malloc()` and `free()` calls
-- easily customizable and extendable to add new special features
-- integrates with C and C++ code by calling C functions for Lisp primitives, for example to embed a Lisp interpreter
+- Lisp with **floating point**, **strings**, proper **closures**, and **macros**
+- over **40 built-in Lisp primitives**
+- **lexically-scoped** locals, like tinylisp
+- proper **tail recursion**, including tail calls through `begin`, `cond`, `if`, `let`, `let*`, `letrec`, `letrec*`
+- **exceptions** and error handling with safe return to REPL after an error
+- **break with CTRL-C** to return to the REPL (optional)
+- REPL with GNU **readline** for convenient Lisp input (optional)
+- **load Lisp** source code files
+- **execution tracing** to display Lisp evaluation steps
+- **mark-sweep garbage collector** to recycle unused cons pair cells
+- plus an alternative **non-recursive garbage collector** (mark-sweep using pointer reversal)
+- **compacting garbage collector** to recycle unused atoms and strings
+- Lisp memory is a **single `cell[]` array**, no `malloc()` and `free()` calls
+- easily **customizable and extensible** to add new special features
+- **integrates with C and C++** code by calling C functions for Lisp primitives, for example to embed a Lisp interpreter
 
 I've documented this project's C source code extensively to explain the inner workings of the interpreter.  This Lisp interpreter includes a [tracing garbage collector](https://en.wikipedia.org/wiki/Tracing_garbage_collection) to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection).  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, I've included a [mark-sweep with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) as an alternative method to eliminate recursive calls.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) removes unused atoms and strings from the heap.
 
 ## Is it really Lisp?
 
-Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this project preserves the original meaning and flavor of [John McCarthy](https://en.wikipedia.org/wiki/John_McCarthy_(computer_scientist))'s [Lisp](https://en.wikipedia.org/wiki/Lisp_(programming_language)) as much as possible:
+Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this Lisp preserves the original meaning and flavor of [John McCarthy](https://en.wikipedia.org/wiki/John_McCarthy_(computer_scientist))'s [Lisp](https://en.wikipedia.org/wiki/Lisp_(programming_language)) as much as possible:
 
     > (define curry
           (lambda (f x)
@@ -33,6 +34,22 @@ Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this project pr
     6
 
 If your Lisp can't [curry](https://en.wikipedia.org/wiki/Currying) like this, it isn't classic Lisp!
+
+## Proper tail recursive
+
+Tail-recursive calls are optimized.  For example, `(forever inf)` infinite recursion:
+
+    > (define forever
+          (lambda (n)
+              (if (eq? 0 n)
+                  'done
+                  (write "forever\n") (forever (- n 1)))))
+    > (forever inf)
+    forever
+    forever
+    ...
+
+Tail recursion optimization is applied to the last function evaluated when its return value is not used as an argument to another function.  Tail recursion optimization is also applied to the tail calls made through the `begin`, `cond`, `if`, `let`, `let*`, `letrec`, and `letrec*` special forms.
 
 ## Compilation
 
@@ -147,17 +164,19 @@ returns `#t` (true) if numbers `n1` < `n2`.  Otherwise, returns `()` (empty list
 
 returns `#t` (true) if values `x` and `y` are identical.  Otherwise, returns `()` (empty list means false).  Numbers and atoms with the same value are always identical, but strings and non-empty lists may not be identical even when their values are the same.
 
-    (or x1 x2 ... xk)
-
-returns `#t` if any of the `x` is not `()`.  Otherwise, returns `()` (empty list means false).  Only evaluates the `x` until the first is not `()`, i.e. the `or` is conditional.
-
-    (and x1 x2 ... xk)
-
-returns `#t` if all of the `x` are not `()`.  Otherwise, returns `()` (empty list means false).  Only evaluates the `x` until the first is `()`, i.e. the `and` is conditional.
-
     (not x)
 
 returns `#t` if `x` is not `()`.  Otherwise, returns `()` (empty list means false).
+
+    (or x1 x2 ... xk)
+
+returns the value of the first `x` that is not `()`.  Otherwise, returns `()` (empty list means false).  Only evaluates the `x` until the first is not `()`, i.e. the `or` is conditional.
+
+    (and x1 x2 ... xk)
+
+returns the value of the last `x` if all `x` are not `()`.  Otherwise, returns `()` (empty list means false).  Only evaluates the `x` until the first is `()`, i.e. the `and` is conditional.
+
+Note that `(or (and <test> <then>) <else>)` forms an if-then-else.  However, like Lua for example, this is not correct when the `<test>` evluates to true but `<then>` is nil (the `()` empty list.)  In that case `<else>` is evaluated.
 
 ### Conditionals
 
@@ -252,7 +271,7 @@ catch exceptions in the evaluation of an expression, returns the value of the ex
 
     (throw n)
 
-throws error `n`, where `n` must be a positive integer constant.
+throws error `n`, where `n` must be a positive integer.
 
 ### Statement sequencing and repetition
 
