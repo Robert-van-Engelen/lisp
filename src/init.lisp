@@ -156,4 +156,11 @@
 (define compose (lambda (f g) (lambda args (f (g . args)))))
 (define Y (lambda (f) (lambda args ((f (Y f)) . args))))
 
+(define reveal
+    (lambda (f)
+        (cond
+            ((eq? (type f) 6) (cons 'lambda (cons (car (car f)) (cons (cdr (car f)) ()))))
+            ((eq? (type f) 7) (cons 'macro (cons (car f) (cons (cdr f) ()))))
+            (#t  f))))
+
 (define defun (macro (f v x) (list 'define f (list 'lambda v x))))

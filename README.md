@@ -20,7 +20,7 @@ A quick glance at this small Lisp interpreter's features:
 - easily _customizable and extensible_ to add new special features
 - _integrates with C and C++_ code by calling C functions for Lisp primitives, for example to embed a Lisp interpreter
 
-I've documented this project's C source code extensively to explain the inner workings of the interpreter.  This Lisp interpreter includes a [tracing garbage collector](https://en.wikipedia.org/wiki/Tracing_garbage_collection) to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection).  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, I've included a small and efficient [mark-sweep method with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) as an alternative method to eliminate recursive calls.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) removes unused atoms and strings from the heap.
+I've documented this project's C source code extensively to explain the inner workings of the Lisp interpreter, which should make it relatively easy to use and modify the code.  This small Lisp interpreter includes a tracing garbage collector to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection).  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, I've included a small and efficient [mark-sweep method with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) as an alternative method to eliminate recursive calls.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) removes unused atoms and strings from the heap.
 
 ## Is it really Lisp?
 
@@ -37,7 +37,7 @@ If your Lisp can't [curry](https://en.wikipedia.org/wiki/Currying) like this, it
 
 ## Proper tail recursive
 
-Tail-recursive calls are optimized.  For example, `(forever inf)` infinite recursion:
+Tail-recursive calls and tail calls in general are optimized.  For example, `(forever inf)` infinite recursion:
 
     > (define forever
           (lambda (n)
@@ -49,7 +49,7 @@ Tail-recursive calls are optimized.  For example, `(forever inf)` infinite recur
     forever
     ...
 
-Tail recursion optimization is applied to the last function evaluated when its return value is not used as an argument to another function.  Tail recursion optimization is also applied to the tail calls made through the `begin`, `cond`, `if`, `let`, `let*`, `letrec`, and `letrec*` special forms.
+Tail call optimization is applied to the last function evaluated when its return value is not used as an argument to another function to operate on.  Tail call optimization is also applied to the tail calls made through the `begin`, `cond`, `if`, `let`, `let*`, `letrec`, and `letrec*` special forms.
 
 ## Compilation
 
@@ -68,7 +68,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     $ ./lisp
     ...
     defun
-    6570+1934>(load "nqueens.lisp")
+    6452+1933>(load "nqueens.lisp")
     ...
     (- - - - - - - @)
     (- - - @ - - - -)
@@ -81,7 +81,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
 
     done
     ()
-    5736+1906>
+    5618+1904>
 
 The prompt displays the number of free cons pair cells + free stack cells available.  The heap and stack are located in the same memory space.  Therefore, the second number is also indicative of the size of the heap space available to store new atoms and strings.
 
@@ -342,11 +342,15 @@ returns a list of numbers `n1` up to but excluding `n2`, with an optional step `
     (map f t1 t2 ... tn)
     (zip t1 t2 ... tn)
 
-non-destructive list operations on lists `t` with functions `f` and values `x`.
+which are the common non-destructive list operations on lists `t` with functions `f` and values `x`.
 
     (Y f)
 
-The fixed-point [Y combinator](https://en.wikipedia.org/wiki/Fixed-point_combinator#Fixed-point_combinators_in_lambda_calculus).
+is the fixed-point [Y combinator](https://en.wikipedia.org/wiki/Fixed-point_combinator#Fixed-point_combinators_in_lambda_calculus).
+
+    (reveal f)
+
+reveals the contents of `f` by displaying the body of the `lambda` of a closure `f` and the body of a `macro` `f`.
 
 ## Lisp memory management
 
@@ -606,7 +610,7 @@ Note that `push` protects the list of bindings pointed to by `p`.  The bindings 
 
 Note that there is more going on here.  Because the `let` forms support tail-recursive calls, we return the expression `car(t)` to evaluate next by the interpreter in its evaluation loop.  Before we return, the scope `*e` is extended to `*p` with the local bindings.
 
-A `push` can also be used to protect new symbols and strings added the heap by the `string` C function:
+A `push` can also be used to protect new symbols and strings added the heap by the `atom` and `string` C functions, for example:
 
     L name = string("John Doe");
     push(name);
@@ -638,6 +642,4 @@ The following `dump` function displays the contents of the pool, e.g. when added
       printf("\nenv=%u fp=%u hp=%u sp=%u\n", ord(env), fp, hp, sp);
     }
 
-## More?
-
-Yes, there will be more to come soon.  Stay tuned.
+## 

@@ -2,7 +2,7 @@
         - double precision floating point, symbols, strings, lists, proper closures, and macros
         - over 40 built-in Lisp primitives
         - lexically-scoped locals in lambda, let, let*, letrec, letrec*
-        - proper tail-recursion, including tail calls through begin, or, and, cond, if, let, let*, letrec, letrec*
+        - proper tail-recursion, including tail calls through begin, cond, if, let, let*, letrec, letrec*
         - exceptions and error handling with safe return to REPL after an error
         - break with CTRL-C to return to the REPL (compile: lisp.c -DHAVE_SIGNAL_H)
         - REPL with readline (compile: lisp.c -DHAVE_READLINE_H -lreadline)
@@ -486,7 +486,7 @@ L parse() {
     return string(buf+1);
   if (sscanf(buf, "%lg%n", &x, &i) > 0 && !buf[i])
     return x;                                   /* return a number, including inf, -inf and nan */
-  return atom(buf);                             /* return an atom (a symbol) */
+  return *buf != ')' ? atom(buf) : ERROR_SYNTAX;/* return an atom (a symbol) */
 }
 
 /*----------------------------------------------------------------------------*\
