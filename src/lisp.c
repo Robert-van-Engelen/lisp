@@ -829,7 +829,7 @@ struct {
  |      EVAL                                                                  |
 \*----------------------------------------------------------------------------*/
 
-/* step-wise evaluate x in environment e, returns value of x */
+/* step-wise evaluate x in environment e, returns value of x, tail-call optimized */
 L step(L x, L e) {
   L *f, v, *d, *z; I i = sp;                    /* save sp to unwind the stack back to sp afterwards */
   f = push(nil);                                /* protect f from getting GC'ed */

@@ -4,9 +4,11 @@
 #ifndef LISP_HPP
 #define LISP_HPP
 
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
+#include <csetjmp>
 #include <functional>
 
 #ifdef HAVE_SIGNAL_H
@@ -46,28 +48,28 @@ typedef Lisp<P,S> This;
 
 Lisp<P,S>() {
   A = reinterpret_cast<char*>(cell);
-  fp = 0;
-  hp = H;
-  sp = N;
-  tr = 0;
-  out = stdout;
-  memset(used, 0, sizeof(used));
-  sweep();
+  fp = 0;                                       /* free pointer */
+  hp = H;                                       /* heap pointer */
+  sp = N;                                       /* stack pointer */
+  tr = 0;                                       /* 0 when tracing is off, 1 or 2 to trace Lisp evaluation steps */
+  out = stdout;                                 /* the file we are writing to, stdout by default */
+  memset(used, 0, sizeof(used));                /* clear the 'used' bit vector */
+  sweep();                                      /* clear the pool */
   nil = box(NIL, 0);                            /* set the constant nil (empty list) */
   tru = atom("#t");                             /* set the constant #t */
   env = pair(tru, tru, nil);                    /* create environment with symbolic constant #t */
   for (I i = 0; prim[i].s; ++i)                 /* expand environment with primitives */
     env = pair(atom(prim[i].s), box(PRIM, i), env);
   fin = 0;                                      /* no open files */
-  see = '\n';
-  ptr = "";
-  line = NULL;
-  strcpy(ps, ">");
-  break_on();
+  see = '\n';                                   /* input line sentinel \n */
+  ptr = "";                                     /* pointer to char in line, init to \0 end of line */
+  line = NULL;                                  /* no line read */
+  strcpy(ps, ">");                              /* prompt */
+  break_on();                                   /* enable interrupt if compiled with -DHAVE_SIGINT_H */
 }
 
 ~Lisp<P,S>() {
-  break_default();
+  break_default();                              /* reinstate CTRL-C default if compiled with -DHAVE_SIGINT_H */
   closein();                                    /* close all open input files */
 }
 
@@ -130,22 +132,6 @@ static I equ(L x, L y) {
 
 public:
 
-#ifdef HAVE_SIGNAL_H
-static void break_on() {
-  signal(SIGINT, (void(*)(int))This::err);
-}
-static void break_off() {
-  signal(SIGINT, SIG_IGN);
-}
-static void break_default() {
-  signal(SIGINT, SIG_DFL);
-}
-#else
-static void break_on() { }
-static void break_off() { }
-static void break_default() { }
-#endif
-
 /* raise an error code, jump to the most recent setjmp */
 static L err(I i) {
   throw i;
@@ -166,6 +152,24 @@ static const char *error(I i) {
   }
 }
 
+#ifdef HAVE_SIGNAL_H
+
+#define GETSIGINT(obj) setjmp((obj).jb);
+static inline jmp_buf jb;
+static void sigint(int i) { longjmp(jb, i); }                    /* cannot throw in sig handlers */
+static void break_on() { signal(SIGINT, This::sigint); }
+static void break_off() { signal(SIGINT, SIG_IGN); }
+static void break_default() { signal(SIGINT, SIG_DFL); }
+
+#else
+
+#define GETSIGINT(obj) 0
+static void break_on() { }
+static void break_off() { }
+static void break_default() { }
+
+#endif
+
 /*----------------------------------------------------------------------------*\
  |      MEMORY MANAGEMENT AND RECYCLING                                       |
 \*----------------------------------------------------------------------------*/
@@ -181,7 +185,7 @@ L nil, tru, env;
 /* garbage collector, returns number of free cells in the pool or raises ERROR_OUT_OF_MEMORY */
 I gc() {
   I i;
-  break_off();                                  /* do not interrupt GC */
+  break_off();                                  /* do not interrupt GC if compiled with -DHAVE_SIGINT_H */
   memset(used, 0, sizeof(used));                /* clear all used[] bits */
   if (T(env) == CONS)
     mark(ord(env));                             /* mark all globally-used cons cell pairs referenced from env list */
@@ -190,7 +194,7 @@ I gc() {
       mark(ord(cell[i]));                       /* mark all cons cell pairs referenced from the stack */
   i = sweep();                                  /* remove unused cons cell pairs from the pool */
   compact();                                    /* remove unused atoms and strings from the heap */
-  break_on();                                   /* enable interrupt */
+  break_on();                                   /* enable interrupt if compiled with -DHAVE_SIGINT_H */
   return i ? i : ERROR_OUT_OF_MEMORY;
 }
 
@@ -455,7 +459,7 @@ char get() {
       if (line)                                 /* free the old line that was malloc'ed by readline */
         free(const_cast<char*>(line));
       line = NULL;
-      break_on();                               /* enable interrupt */
+      break_on();                               /* enable interrupt if compiled with -DHAVE_SIGINT_H */
       while (!(ptr = line = readline(ps)))      /* read new line and set ptr to start of the line */
         freopen("/dev/tty", "r", stdin);        /* try again when line is NULL after EOF by CTRL-D */
       add_history(line);                        /* make it part of the history */
@@ -915,7 +919,7 @@ L eval(L x, L e) {
 
 protected:
 
-/* step-wise evaluate x in environment e, returns value of x */
+/* step-wise evaluate x in environment e, returns value of x, tail-call optimized */
 L step(L x, L e) {
   L *f, v, *d, *z; I i = sp;                    /* save sp to unwind the stack back to sp afterwards */
   f = push(nil);                                /* protect f from getting GC'ed */

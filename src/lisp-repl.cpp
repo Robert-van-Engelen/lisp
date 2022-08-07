@@ -11,6 +11,11 @@ int main() {
   MySmallLisp lisp;
   lisp.input("init.lisp");
   using_history();
+  int i = GETSIGINT(lisp);      // when compiling with -DHAVE_SIGINT_H we must set this handler!
+  if (i) {
+    lisp.closein();
+    printf("ERR %u %s", i, lisp.error(i));
+  }
   while (1) {
     putchar('\n');
     lisp.unwind();
