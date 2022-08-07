@@ -81,7 +81,7 @@ L box(I t, I i) {
 }
 
 I ord(L x) {
-  return *(uint64_t*)&x;
+  return *(uint64_t*)&x;        /* the return value is narrowed to 32 bit unsigned integer to remove the tag */
 }
 
 L num(L n) {
@@ -380,6 +380,7 @@ I more(L t) {
 I fin = 0;
 FILE *in[10];
 
+/* specify an input file to parse */
 FILE *input(const char *s) {
   return fin > 9 ? NULL : (in[fin++] = fopen(s, "r"));
 }
@@ -449,7 +450,7 @@ char scan() {
         static const char *abtnvfr = "abtnvfr"; /* \a, \b, \t, \n, \v, \f, \r escape codes */
         const char *esc;
         get();
-        esc = strchr(abtnvfr, see);             
+        esc = strchr(abtnvfr, see);
         buf[i++] = esc ? esc-abtnvfr+7 : see;   /* replace \x with an escaped code or x itself */
         get();
       }
@@ -801,7 +802,7 @@ struct {
 } prim[] = {
   {"type",     f_type,    NORMAL},              /* (type x) => <type> value between 0 and 9 */
   {"eval",     f_ident,   NORMAL|TAILCALL},     /* (eval <quoted-expr>) => <value-of-expr> */
-  {"quote",    f_ident,   SPECIAL},             /* (quote <expr>) => <expr> -- protects <expr> from evaluation */
+  {"quote",    f_ident,   SPECIAL},             /* (quote <expr>) => <expr> -- protect <expr> from evaluation */
   {"cons",     f_cons,    NORMAL},              /* (cons x y) => (x . y) -- construct a pair */
   {"car",      f_car,     NORMAL},              /* (car <pair>) => x -- "deconstruct" <pair> (x . y) */
   {"cdr",      f_cdr,     NORMAL},              /* (cdr <pair>) => y -- "deconstruct" <pair> (x . y) */
@@ -828,7 +829,7 @@ struct {
   {"let*",     f_leta,    SPECIAL|TAILCALL},    /* (let* (v1 x1) (v2 x2) ... (vk xk) y) => y with scope of bindings */
   {"letrec",   f_letrec,  SPECIAL|TAILCALL},    /* (letrec (v1 x1) (v2 x2) ... (vk xk) y) => y with recursive scope */
   {"letrec*",  f_letreca, SPECIAL|TAILCALL},    /* (letrec* (v1 x1) (v2 x2) ... (vk xk) y) => y with recursive scope */
-  {"setq",     f_setq,    SPECIAL},             /* (setq <symbol> x) -- changes value of <symbol> in environment to x */
+  {"setq",     f_setq,    SPECIAL},             /* (setq <symbol> x) -- changes value of <symbol> in scope to x */
   {"set-car!", f_setcar,  NORMAL},              /* (set-car! <pair> x) -- changes car of <pair> to x in memory */
   {"set-cdr!", f_setcdr,  NORMAL},              /* (set-cdr! <pair> y) -- changes cdr of <pair> to y in memory */
   {"read",     f_read,    NORMAL},              /* (read) => <value-of-input> */
@@ -838,7 +839,7 @@ struct {
   {"load",     f_load,    NORMAL},              /* (load <name>) -- loads file <name> (an atom or string name) */
   {"trace",    f_trace,   NORMAL},              /* (trace 0) -- off, (trace 1) -- on, (trace 2) -- keypress */
   {"catch",    f_catch,   SPECIAL},             /* (catch <expr>) => <value-of-expr> if no exception else (ERR . n) */
-  {"throw",    f_throw,   NORMAL},              /* (throw n) -- raise exception error code n (integer constant > 0) */
+  {"throw",    f_throw,   NORMAL},              /* (throw n) -- raise exception error code n (integer > 0) */
   {"quit",     f_quit,    NORMAL},              /* (quit) -- bye! */
   {0}
 };

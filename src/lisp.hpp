@@ -1,36 +1,23 @@
-/* lisp.c with NaN boxing by Robert A. van Engelen 2022 BSD-3 license
-        - double precision floating point, symbols, strings, lists, proper closures, and macros
-        - over 40 built-in Lisp primitives
-        - lexically-scoped locals in lambda, let, let*, letrec, letrec*
-        - proper tail-recursion, including tail calls through begin, cond, if, let, let*, letrec, letrec*
-        - exceptions and error handling with safe return to REPL after an error
-        - break with CTRL-C to return to the REPL (compile: lisp.c -DHAVE_SIGNAL_H)
-        - REPL with readline (compile: lisp.c -DHAVE_READLINE_H -lreadline)
-        - load Lisp source code files
-        - execution tracing to display Lisp evaluation steps
-        - mark-sweep garbage collector to recycle unused cons pair cells
-        - compacting garbage collector to recycle unused atoms and strings
-        - Lisp memory is a single cell[] array, no malloc() and free() calls */
+/* lisp.hpp C++ with NaN boxing by Robert A. van Engelen 2022 BSD-3 license
+   This C++17 version encapsulates the Lisp interpreter in a Lisp class */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <setjmp.h>
+#ifndef LISP_HPP
+#define LISP_HPP
+
+#include <cstdio>
+#include <cstring>
+#include <cstdint>
+#include <functional>
 
 #ifdef HAVE_SIGNAL_H
 #include <signal.h>             /* to catch CTRL-C and continue the REPL */
-#define BREAK_ON  signal(SIGINT, (void(*)(int))err)
-#define BREAK_OFF signal(SIGINT, SIG_IGN)
-#else
-#define BREAK_ON  (void)0
-#define BREAK_OFF (void)0
 #endif
 
 #ifdef HAVE_READLINE_H
 #include <readline/readline.h>  /* for convenient line editing ... */
 #include <readline/history.h>   /* ... and a history of previous Lisp input */
 #else
-void using_history() { }
+inline void using_history() { }
 #endif
 
 /* floating point output format */
@@ -43,9 +30,46 @@ void using_history() { }
 #define ALWAYS_GC 0
 #endif
 
+/* T(x) returns the tag bits of a NaN-boxed Lisp expression x */
+#define T(x) (*(uint64_t*)&x >> 48)
+
+/* Lisp class<P,S> parameterized with pool size P and stack/heap size S */
+template<uint32_t P,uint32_t S> class Lisp {
+
 /*----------------------------------------------------------------------------*\
  |      LISP EXPRESSION TYPES AND NAN BOXING                                  |
 \*----------------------------------------------------------------------------*/
+
+public:
+
+typedef Lisp<P,S> This;
+
+Lisp<P,S>() {
+  A = reinterpret_cast<char*>(cell);
+  fp = 0;
+  hp = H;
+  sp = N;
+  tr = 0;
+  out = stdout;
+  memset(used, 0, sizeof(used));
+  sweep();
+  nil = box(NIL, 0);                            /* set the constant nil (empty list) */
+  tru = atom("#t");                             /* set the constant #t */
+  env = pair(tru, tru, nil);                    /* create environment with symbolic constant #t */
+  for (I i = 0; prim[i].s; ++i)                 /* expand environment with primitives */
+    env = pair(atom(prim[i].s), box(PRIM, i), env);
+  fin = 0;                                      /* no open files */
+  see = '\n';
+  ptr = "";
+  line = NULL;
+  strcpy(ps, ">");
+  break_on();
+}
+
+~Lisp<P,S>() {
+  break_default();
+  closein();                                    /* close all open input files */
+}
 
 /* we only need two types to implement a Lisp interpreter:
         I      unsigned integer (32 bit unsigned)
@@ -61,34 +85,33 @@ void using_history() { }
         p      pair, a cons of two Lisp expressions
         e,d    environment, a list of pairs, e.g. created with (define v x)
         v      the name of a variable (an atom) or a list of variables */
-#define I uint32_t
-#define L double
+typedef uint32_t I;
+typedef double L;
 
-/* T(x) returns the tag bits of a NaN-boxed Lisp expression x */
-#define T(x) (*(uint64_t*)&x >> 48)
+protected:
 
 /* primitive, atom, string, cons, closure, macro and nil tags for NaN boxing (reserve 0x7ff8 for nan) */
-I PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe, MACR = 0x7fff, NIL = 0xffff;
+static const I PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe, MACR = 0x7fff, NIL = 0xffff;
 
 /* box(t,i): returns a new NaN-boxed double with tag t and ordinal i
    ord(x):   returns the ordinal of the NaN-boxed double x
    num(n):   convert or check number n (does nothing, e.g. could check for NaN)
    equ(x,y): returns nonzero if x equals y */
-L box(I t, I i) {
+static L box(I t, I i) {
   L x;
   *(uint64_t*)&x = (uint64_t)t << 48 | i;
   return x;
 }
 
-I ord(L x) {
+static I ord(L x) {
   return *(uint64_t*)&x;        /* the return value is narrowed to 32 bit unsigned integer to remove the tag */
 }
 
-L num(L n) {
+static L num(L n) {
   return n;
 }
 
-I equ(L x, L y) {
+static I equ(L x, L y) {
   return *(uint64_t*)&x == *(uint64_t*)&y;
 }
 
@@ -96,56 +119,112 @@ I equ(L x, L y) {
  |      ERROR HANDLING AND ERROR MESSAGES                                     |
 \*----------------------------------------------------------------------------*/
 
-/* setjmp-longjmp jump buffer */
-jmp_buf jb;
+#define ERROR_NOT_A_PAIR        err(1)
+#define ERROR_BREAK             err(2)
+#define ERROR_UNBOUND_SYMBOL    err(3)
+#define ERROR_CANNOT_APPLY      err(4)
+#define ERROR_ARGUMENTS         err(5)
+#define ERROR_STACK_OVER        err(6)
+#define ERROR_OUT_OF_MEMORY     err(7)
+#define ERROR_SYNTAX            err(8)
+
+public:
+
+#ifdef HAVE_SIGNAL_H
+static void break_on() {
+  signal(SIGINT, (void(*)(int))This::err);
+}
+static void break_off() {
+  signal(SIGINT, SIG_IGN);
+}
+static void break_default() {
+  signal(SIGINT, SIG_DFL);
+}
+#else
+static void break_on() { }
+static void break_off() { }
+static void break_default() { }
+#endif
 
 /* raise an error code, jump to the most recent setjmp */
-L err(I i) {
-  longjmp(jb, i);
+static L err(I i) {
+  throw i;
 }
 
-#define ERRORS 8
-const char *errors[ERRORS+1] = {
-  "",
-#define ERROR_NOT_A_PAIR        err(1)
-  "not a pair",
-#define ERROR_BREAK             err(2)
-  "break",
-#define ERROR_UNBOUND_SYMBOL    err(3)
-  "unbound symbol",
-#define ERROR_CANNOT_APPLY      err(4)
-  "cannot apply",
-#define ERROR_ARGUMENTS         err(5)
-  "arguments",
-#define ERROR_STACK_OVER        err(6)
-  "stack over",
-#define ERROR_OUT_OF_MEMORY     err(7)
-  "out of memory",
-#define ERROR_SYNTAX            err(8)
-  "syntax"
-};
+/* return error string for error code or empty string */
+static const char *error(I i) {
+  switch (i) {
+    case 1: return "not a pair";
+    case 2: return "break";
+    case 3: return "unbound symbol";
+    case 4: return "cannot apply";
+    case 5: return "arguments";
+    case 6: return "stack over";
+    case 7: return "out of memory";
+    case 8: return "syntax";
+    default: return "";
+  }
+}
 
 /*----------------------------------------------------------------------------*\
  |      MEMORY MANAGEMENT AND RECYCLING                                       |
 \*----------------------------------------------------------------------------*/
 
-/* number of cells to allocate for the cons pair pool, increase P as desired */
-#define P 8192
-
-/* number of cells to allocate for the shared stack and heap, increase S as desired */
-#define S 2048
-
-/* total number of cells to allocate = P+S */
-#define N (P+S)
+public:
 
 /* base address of the atom/string heap */
-#define A (char*)cell
+char *A;
+
+/* Lisp constant expressions () (nil) and #t, and the global environment env */
+L nil, tru, env;
+
+/* garbage collector, returns number of free cells in the pool or raises ERROR_OUT_OF_MEMORY */
+I gc() {
+  I i;
+  break_off();                                  /* do not interrupt GC */
+  memset(used, 0, sizeof(used));                /* clear all used[] bits */
+  if (T(env) == CONS)
+    mark(ord(env));                             /* mark all globally-used cons cell pairs referenced from env list */
+  for (i = sp; i < N; ++i)
+    if ((T(cell[i]) & ~(CONS^MACR)) == CONS)
+      mark(ord(cell[i]));                       /* mark all cons cell pairs referenced from the stack */
+  i = sweep();                                  /* remove unused cons cell pairs from the pool */
+  compact();                                    /* remove unused atoms and strings from the heap */
+  break_on();                                   /* enable interrupt */
+  return i ? i : ERROR_OUT_OF_MEMORY;
+}
+
+/* push x on the stack to protect it from being recycled, returns pointer to cell pair (e.g. to update the value) */
+L *push(L x) {
+  cell[--sp] = x;                               /* we must save x on the stack so it won't get GC'ed */
+  if (hp > (sp-1) << 3 || ALWAYS_GC) {          /* if insufficient stack space is available, then GC */
+    gc();                                       /* GC */
+    if (hp > (sp-1) << 3)                       /* GC did not free up heap space to enlarge the stack */
+      ERROR_STACK_OVER;
+  }
+  return &cell[sp];
+}
+
+/* pop from the stack and return value */
+L pop() {
+  return cell[sp++];
+}
+
+/* unwind the stack up to position i, where i=N clears the stack */
+void unwind(I i = N) {
+  sp = i;
+}
+
+protected:
+
+/* total number of cells to allocate = P+S */
+static const uint32_t N = P+S;
 
 /* heap address start offset, the heap starts at address A+H immediately above the pool */
-#define H (8*P)
+static const uint32_t H = sizeof(L)*P;
 
 /* size of the cell reference field of an atom/string on the heap, used by the compacting garbage collector */
-#define R sizeof(I)
+static const uint32_t R = sizeof(I);
 
 /* array of Lisp expressions, shared by the pool, heap and stack */
 L cell[N];
@@ -154,10 +233,7 @@ L cell[N];
    hp: heap pointer, A+hp points free atom/string heap space above the pool and below the stack
    sp: stack pointer, the stack starts at the top of cell[] with sp=N
    tr: 0 when tracing is off, 1 or 2 to trace Lisp evaluation steps */
-I fp = 0, hp = H, sp = N, tr = 0;
-
-/* Lisp constant expressions () (nil) and #t, and the global environment env */
-L nil, tru, env;
+I fp, hp, sp, tr;
 
 /* bit vector corresponding to the pairs of cells in the pool marked 'used' (car and cdr cells are marked together) */
 uint32_t used[(P+63)/64];
@@ -221,46 +297,11 @@ void compact() {
   }
 }
 
-/* garbage collector, returns number of free cells in the pool or raises ERROR_OUT_OF_MEMORY */
-I gc() {
-  I i;
-  BREAK_OFF;                                    /* do not interrupt GC */
-  memset(used, 0, sizeof(used));                /* clear all used[] bits */
-  if (T(env) == CONS)
-    mark(ord(env));                             /* mark all globally-used cons cell pairs referenced from env list */
-  for (i = sp; i < N; ++i)
-    if ((T(cell[i]) & ~(CONS^MACR)) == CONS)
-      mark(ord(cell[i]));                       /* mark all cons cell pairs referenced from the stack */
-  i = sweep();                                  /* remove unused cons cell pairs from the pool */
-  compact();                                    /* remove unused atoms and strings from the heap */
-  BREAK_ON;                                     /* enable interrupt */
-  return i ? i : ERROR_OUT_OF_MEMORY;
-}
-
-/* push x on the stack to protect it from being recycled, returns pointer to cell pair (e.g. to update the value) */
-L *push(L x) {
-  cell[--sp] = x;                               /* we must save x on the stack so it won't get GC'ed */
-  if (hp > (sp-1) << 3 || ALWAYS_GC) {          /* if insufficient stack space is available, then GC */
-    gc();                                       /* GC */
-    if (hp > (sp-1) << 3)                       /* GC did not free up heap space to enlarge the stack */
-      ERROR_STACK_OVER;
-  }
-  return &cell[sp];
-}
-
-/* pop from the stack and return value */
-L pop() {
-  return cell[sp++];
-}
-
-/* unwind the stack up to position i, where i=N clears the stack */
-void unwind(I i) {
-  sp = i;
-}
-
 /*----------------------------------------------------------------------------*\
  |      LISP EXPRESSION CONSTRUCTION AND INSPECTION                           |
 \*----------------------------------------------------------------------------*/
+
+public:
 
 /* allocate n+1 bytes on the heap, returns heap offset of the allocated space */
 I alloc(I n) {
@@ -343,8 +384,8 @@ L assoc(L v, L e) {
   return T(e) == CONS ? cdr(car(e)) : ERROR_UNBOUND_SYMBOL;
 }
 
-/* not(x) is nonzero if x is the Lisp () empty list */
-I not(L x) {
+/* Not(x) is nonzero if x is the Lisp () empty list */
+I Not(L x) {
   return T(x) == NIL;
 }
 
@@ -357,20 +398,45 @@ I more(L t) {
  |      READ                                                                  |
 \*----------------------------------------------------------------------------*/
 
-/* the file(s) we are reading or fin=0 when reading from the terminal */
-I fin = 0;
-FILE *in[10];
+public:
 
 /* specify an input file to parse */
 FILE *input(const char *s) {
   return fin > 9 ? NULL : (in[fin++] = fopen(s, "r"));
 }
 
-/* tokenization buffer and the next character that we see */
-char buf[256], see = '\n';
+/* close all open input files */
+void closein() {
+  while (fin)
+    fclose(in[--fin]);
+}
 
-/* readline pointer into the last line and the prompt string */
-char *ptr = "", *line = NULL, ps[20];
+/* return the Lisp expression parsed and read from input */
+L read() {
+  scan();
+  return parse();
+}
+
+/* specify a REPL prompt, where the first %u shows free pool space and second %u shows free stack/heap space */
+void prompt(const char *s) {
+  I i = gc();
+  snprintf(ps, sizeof(ps), s, i, sp-hp/8);
+}
+
+protected:
+
+/* the file(s) we are reading or fin=0 when reading from the terminal */
+I fin;
+FILE *in[10];
+
+/* tokenization buffer and the next character that we see */
+char buf[256], see;
+
+/* readline pointer into the last line */
+const char *ptr, *line;
+
+/* prompt string */
+char ps[20];
 
 /* return the character we see, advance to the next character */
 char get() {
@@ -385,11 +451,11 @@ char get() {
   else {
 #ifdef HAVE_READLINE_H
     if (see == '\n') {                          /* if looking at the end of the current readline line */
-      BREAK_OFF;                                /* disable interrupt to prevent free() without final line = NULL */
+      break_off();                              /* disable interrupt to prevent free() without final line = NULL */
       if (line)                                 /* free the old line that was malloc'ed by readline */
-        free(line);
+        free(const_cast<char*>(line));
       line = NULL;
-      BREAK_ON;                                 /* enable interrupt */
+      break_on();                               /* enable interrupt */
       while (!(ptr = line = readline(ps)))      /* read new line and set ptr to start of the line */
         freopen("/dev/tty", "r", stdin);        /* try again when line is NULL after EOF by CTRL-D */
       add_history(line);                        /* make it part of the history */
@@ -450,13 +516,6 @@ char scan() {
   return *buf;                                  /* return first character of token in buf[] */
 }
 
-/* return the Lisp expression parsed and read from input */
-L parse();
-L read() {
-  scan();
-  return parse();
-}
-
 /* return a parsed Lisp list */
 L list() {
   L *p = push(nil);                             /* push the new list to protect it from getting GC'ed */
@@ -494,11 +553,9 @@ L parse() {
  |      PRIMITIVES -- SEE THE TABLE WITH COMMENTS FOR DETAILS                 |
 \*----------------------------------------------------------------------------*/
 
-/* the file we are writing to, stdout by default */
-FILE *out;
+public:
 
 /* construct a new list of evaluated expressions in list t, i.e. the arguments passed to a function or primitive */
-L eval(L, L);
 L evlis(L t, L e) {
   L *p = push(nil);                             /* push the new list to protect it from getting GC'ed */
   for (; T(t) == CONS; t = cdr(t)) {            /* for each expression in list t */
@@ -533,28 +590,28 @@ L f_cdr(L t, L *_) {
 
 L f_add(L t, L *_) {
   L n = car(t);
-  while (!not(t = cdr(t)))
+  while (!Not(t = cdr(t)))
     n += car(t);
   return num(n);
 }
 
 L f_sub(L t, L *_) {
-  L n = not(cdr(t)) ? -car(t) : car(t);
-  while (!not(t = cdr(t)))
+  L n = Not(cdr(t)) ? -car(t) : car(t);
+  while (!Not(t = cdr(t)))
     n -= car(t);
   return num(n);
 }
 
 L f_mul(L t, L *_) {
   L n = car(t);
-  while (!not(t = cdr(t)))
+  while (!Not(t = cdr(t)))
     n *= car(t);
   return num(n);
 }
 
 L f_div(L t, L *_) {
-  L n = not(cdr(t)) ? 1./car(t) : car(t);
-  while (!not(t = cdr(t)))
+  L n = Not(cdr(t)) ? 1./car(t) : car(t);
+  while (!Not(t = cdr(t)))
     n /= car(t);
   return num(n);
 }
@@ -574,19 +631,19 @@ L f_eq(L t, L *_) {
 }
 
 L f_not(L t, L *_) {
-  return not(car(t)) ? tru : nil;
+  return Not(car(t)) ? tru : nil;
 }
 
 L f_or(L t, L *e) {
   L x = nil;
-  while (T(t) != NIL && not(x = eval(car(t), *e)))
+  while (T(t) != NIL && Not(x = eval(car(t), *e)))
     t = cdr(t);
   return x;
 }
 
 L f_and(L t, L *e) {
   L x = nil;
-  while (T(t) != NIL && !not(x = eval(car(t), *e)))
+  while (T(t) != NIL && !Not(x = eval(car(t), *e)))
     t = cdr(t);
   return x;
 }
@@ -599,20 +656,20 @@ L f_begin(L t, L *e) {
 
 L f_while(L t, L *e) {
   L s, x = nil;
-  while (!not(eval(car(t), *e)))
+  while (!Not(eval(car(t), *e)))
     for (s = cdr(t); T(s) != NIL; s = cdr(s))
       x = eval(car(s), *e);
   return x;
 }
 
 L f_cond(L t, L *e) {
-  while (T(t) != NIL && not(eval(car(car(t)), *e)))
+  while (T(t) != NIL && Not(eval(car(car(t)), *e)))
     t = cdr(t);
   return f_begin(cdr(car(t)), e);
 }
 
 L f_if(L t, L *e) {
-  return not(eval(car(t), *e)) ? f_begin(cdr(cdr(t)), e) : car(cdr(t));
+  return Not(eval(car(t), *e)) ? f_begin(cdr(cdr(t)), e) : car(cdr(t));
 }
 
 L f_lambda(L t, L *e) {
@@ -698,7 +755,6 @@ L f_read(L t, L *_) {
   return x;
 }
 
-void print(L);
 L f_print(L t, L *_) {
   for (; T(t) != NIL; t = cdr(t))
     print(car(t));
@@ -757,77 +813,107 @@ L f_trace(L t, L *_) {
 }
 
 L f_catch(L t, L *e) {
-  L x; I i, savedsp = sp;
-  jmp_buf savedjb;
-  memcpy(savedjb, jb, sizeof(jb));
-  i = setjmp(jb);
-  x = i ? cons(atom("ERR"), i) : eval(car(t), *e);
-  memcpy(jb, savedjb, sizeof(jb));
+  L x; I savedsp = sp;
+  try {
+    x = eval(car(t), *e);
+  }
+  catch (I i) {
+    x = cons(atom("ERR"), i);
+  }
   sp = savedsp;
   return x;
 }
 
 L f_throw(L t, L *_) {
-  longjmp(jb, (I)num(car(t)));
+  throw (I)num(car(t));
 }
 
+struct QUIT { };
 L f_quit(L t, L *_) {
-  exit(0);
+  throw QUIT();
 }
+
+/* the file we are writing to, stdout by default */
+FILE *out;
+
+protected:
+
+/* evaluation mode of a primitive */
+static const uint8_t NORMAL = 0, SPECIAL = 1, TAILCALL = 2;
 
 /* table of Lisp primitives, each has a name s, a function pointer f, and an evaluation mode m */
-struct {
+inline static const struct {
   const char *s;
-  L (*f)(L, L*);
-  enum { NORMAL, SPECIAL, TAILCALL } m;
-} prim[] = {
-  {"type",     f_type,    NORMAL},              /* (type x) => <type> value between 0 and 9 */
-  {"eval",     f_ident,   NORMAL|TAILCALL},     /* (eval <quoted-expr>) => <value-of-expr> */
-  {"quote",    f_ident,   SPECIAL},             /* (quote <expr>) => <expr> -- protect <expr> from evaluation */
-  {"cons",     f_cons,    NORMAL},              /* (cons x y) => (x . y) -- construct a pair */
-  {"car",      f_car,     NORMAL},              /* (car <pair>) => x -- "deconstruct" <pair> (x . y) */
-  {"cdr",      f_cdr,     NORMAL},              /* (cdr <pair>) => y -- "deconstruct" <pair> (x . y) */
-  {"+",        f_add,     NORMAL},              /* (+ n1 n2 ... nk) => n1+n2+...+nk */
-  {"-",        f_sub,     NORMAL},              /* (- n1 n2 ... nk) => n1-n2-...-nk or -n1 if k=1 */
-  {"*",        f_mul,     NORMAL},              /* (* n1 n2 ... nk) => n1*n2*...*nk */
-  {"/",        f_div,     NORMAL},              /* (/ n1 n2 ... nk) => n1/n2/.../nk or 1/n1 if k=1 */
-  {"int",      f_int,     NORMAL},              /* (int <integer.frac>) => <integer> */
-  {"<",        f_lt,      NORMAL},              /* (< n1 n2) => #t if n1<n2 else () */
-  {"eq?",      f_eq,      NORMAL},              /* (eq? x y) => #t if x==y else () */
-  {"not",      f_not,     NORMAL},              /* (not x) => #t if x==() else ()t */
-  {"or",       f_or,      SPECIAL},             /* (or x1 x2 ... xk) => #t if any x1 is not () else () */
-  {"and",      f_and,     SPECIAL},             /* (and x1 x2 ... xk) => #t if all x1 are not () else () */
-  {"begin",    f_begin,   SPECIAL|TAILCALL},    /* (begin x1 x2 ... xk) => xk -- evaluates x1, x2 to xk */
-  {"while",    f_while,   SPECIAL},             /* (while x y1 y2 ... yk) -- while x is not () evaluate y1, y2 ... yk */
-  {"cond",     f_cond,    SPECIAL|TAILCALL},    /* (cond (x1 y1) (x2 y2) ... (xk yk)) => yi for first xi!=() */
-  {"if",       f_if,      SPECIAL|TAILCALL},    /* (if x y z) => if x!=() then y else z */
-  {"lambda",   f_lambda,  SPECIAL},             /* (lambda <parameters> <expr>) => {closure} */
-  {"macro",    f_macro,   SPECIAL},             /* (macro <parameters> <expr>) => [macro] */
-  {"define",   f_define,  SPECIAL},             /* (define <symbol> <expr>) -- globally defines <symbol> */
-  {"assoc",    f_assoc,   NORMAL},              /* (assoc <quoted-symbol> <environment>) => <value-of-symbol> */
-  {"env",      f_env,     NORMAL},              /* (env) => <environment> */
-  {"let",      f_let,     SPECIAL|TAILCALL},    /* (let (v1 x1) (v2 x2) ... (vk xk) y) => y with scope of bindings */
-  {"let*",     f_leta,    SPECIAL|TAILCALL},    /* (let* (v1 x1) (v2 x2) ... (vk xk) y) => y with scope of bindings */
-  {"letrec",   f_letrec,  SPECIAL|TAILCALL},    /* (letrec (v1 x1) (v2 x2) ... (vk xk) y) => y with recursive scope */
-  {"letrec*",  f_letreca, SPECIAL|TAILCALL},    /* (letrec* (v1 x1) (v2 x2) ... (vk xk) y) => y with recursive scope */
-  {"setq",     f_setq,    SPECIAL},             /* (setq <symbol> x) -- changes value of <symbol> in scope to x */
-  {"set-car!", f_setcar,  NORMAL},              /* (set-car! <pair> x) -- changes car of <pair> to x in memory */
-  {"set-cdr!", f_setcdr,  NORMAL},              /* (set-cdr! <pair> y) -- changes cdr of <pair> to y in memory */
-  {"read",     f_read,    NORMAL},              /* (read) => <value-of-input> */
-  {"print",    f_print,   NORMAL},              /* (print x1 x2 ... xk) => () -- prints the values x1 x2 ... xk */
-  {"write",    f_write,   NORMAL},              /* (write x1 x2 ... xk) => () -- prints without quoting strings */
-  {"string",   f_string,  NORMAL},              /* (string x1 x2 ... xk) => <string> -- string of x1 x2 ... xk */
-  {"load",     f_load,    NORMAL},              /* (load <name>) -- loads file <name> (an atom or string name) */
-  {"trace",    f_trace,   NORMAL},              /* (trace 0) -- off, (trace 1) -- on, (trace 2) -- keypress */
-  {"catch",    f_catch,   SPECIAL},             /* (catch <expr>) => <value-of-expr> if no exception else (ERR . n) */
-  {"throw",    f_throw,   NORMAL},              /* (throw n) -- raise exception error code n (integer > 0) */
-  {"quit",     f_quit,    NORMAL},              /* (quit) -- bye! */
+  std::function<L(This&,L,L*)> f;
+  uint8_t m;
+} prim[42] = {
+  {"type",     &This::f_type,    NORMAL},           /* (type x) => <type> value between 0 and 9 */
+  {"eval",     &This::f_ident,   NORMAL|TAILCALL},  /* (eval <quoted-expr>) => <value-of-expr> */
+  {"quote",    &This::f_ident,   SPECIAL},          /* (quote <expr>) => <expr> -- protect <expr> from evaluation */
+  {"cons",     &This::f_cons,    NORMAL},           /* (cons x y) => (x . y) -- construct a pair */
+  {"car",      &This::f_car,     NORMAL},           /* (car <pair>) => x -- "deconstruct" <pair> (x . y) */
+  {"cdr",      &This::f_cdr,     NORMAL},           /* (cdr <pair>) => y -- "deconstruct" <pair> (x . y) */
+  {"+",        &This::f_add,     NORMAL},           /* (+ n1 n2 ... nk) => n1+n2+...+nk */
+  {"-",        &This::f_sub,     NORMAL},           /* (- n1 n2 ... nk) => n1-n2-...-nk or -n1 if k=1 */
+  {"*",        &This::f_mul,     NORMAL},           /* (* n1 n2 ... nk) => n1*n2*...*nk */
+  {"/",        &This::f_div,     NORMAL},           /* (/ n1 n2 ... nk) => n1/n2/.../nk or 1/n1 if k=1 */
+  {"int",      &This::f_int,     NORMAL},           /* (int <integer.frac>) => <integer> */
+  {"<",        &This::f_lt,      NORMAL},           /* (< n1 n2) => #t if n1<n2 else () */
+  {"eq?",      &This::f_eq,      NORMAL},           /* (eq? x y) => #t if x==y else () */
+  {"not",      &This::f_not,     NORMAL},           /* (not x) => #t if x==() else ()t */
+  {"or",       &This::f_or,      SPECIAL},          /* (or x1 x2 ... xk) => #t if any x1 is not () else () */
+  {"and",      &This::f_and,     SPECIAL},          /* (and x1 x2 ... xk) => #t if all x1 are not () else () */
+  {"begin",    &This::f_begin,   SPECIAL|TAILCALL}, /* (begin x1 x2 ... xk) => xk -- evaluates x1, x2 to xk */
+  {"while",    &This::f_while,   SPECIAL},          /* (while x y1 y2 ... yk) -- while x is not () eval y1, y2 ... yk */
+  {"cond",     &This::f_cond,    SPECIAL|TAILCALL}, /* (cond (x1 y1) (x2 y2) ... (xk yk)) => yi for first xi!=() */
+  {"if",       &This::f_if,      SPECIAL|TAILCALL}, /* (if x y z) => if x!=() then y else z */
+  {"lambda",   &This::f_lambda,  SPECIAL},          /* (lambda <parameters> <expr>) => {closure} */
+  {"macro",    &This::f_macro,   SPECIAL},          /* (macro <parameters> <expr>) => [macro] */
+  {"define",   &This::f_define,  SPECIAL},          /* (define <symbol> <expr>) -- globally defines <symbol> */
+  {"assoc",    &This::f_assoc,   NORMAL},           /* (assoc <quoted-symbol> <environment>) => <value-of-symbol> */
+  {"env",      &This::f_env,     NORMAL},           /* (env) => <environment> */
+  {"let",      &This::f_let,     SPECIAL|TAILCALL}, /* (let (v1 x1) (v2 x2) ... (vk xk) y) => y with scope */
+  {"let*",     &This::f_leta,    SPECIAL|TAILCALL}, /* (let* (v1 x1) (v2 x2) ... (vk xk) y) => y with scope */
+  {"letrec",   &This::f_letrec,  SPECIAL|TAILCALL}, /* (letrec (v1 x1) (v2 x2) ... (vk xk) y) => y recursive scope */
+  {"letrec*",  &This::f_letreca, SPECIAL|TAILCALL}, /* (letrec* (v1 x1) (v2 x2) ... (vk xk) y) => y recursive scope */
+  {"setq",     &This::f_setq,    SPECIAL},          /* (setq <symbol> x) -- changes value of <symbol> in scope to x */
+  {"set-car!", &This::f_setcar,  NORMAL},           /* (set-car! <pair> x) -- changes car of <pair> to x in memory */
+  {"set-cdr!", &This::f_setcdr,  NORMAL},           /* (set-cdr! <pair> y) -- changes cdr of <pair> to y in memory */
+  {"read",     &This::f_read,    NORMAL},           /* (read) => <value-of-input> */
+  {"print",    &This::f_print,   NORMAL},           /* (print x1 x2 ... xk) => () -- prints the values x1 x2 ... xk */
+  {"write",    &This::f_write,   NORMAL},           /* (write x1 x2 ... xk) => () -- prints without quoting strings */
+  {"string",   &This::f_string,  NORMAL},           /* (string x1 x2 ... xk) => <string> -- string of x1 x2 ... xk */
+  {"load",     &This::f_load,    NORMAL},           /* (load <name>) -- loads file <name> (an atom or string name) */
+  {"trace",    &This::f_trace,   NORMAL},           /* (trace 0) -- off, (trace 1) -- on, (trace 2) -- keypress */
+  {"catch",    &This::f_catch,   SPECIAL},          /* (catch <expr>) => <value-of-expr> if no except. else (ERR . n) */
+  {"throw",    &This::f_throw,   NORMAL},           /* (throw n) -- raise exception error code n (integer > 0) */
+  {"quit",     &This::f_quit,    NORMAL},           /* (quit) -- bye! */
   {0}
 };
 
 /*----------------------------------------------------------------------------*\
  |      EVAL                                                                  |
 \*----------------------------------------------------------------------------*/
+
+public:
+
+/* trace the evaluation of x in environment e, returns its value */
+L eval(L x, L e) {
+  L y;
+  if (!tr)
+    return step(x, e);                          /* eval() -> step() tail call when not tracing */
+  y = step(x, e);
+  printf("%u: ", N-sp); print(x);               /* <stack depth>: unevaluated expression */
+  printf(" => ");       print(y);               /* => value of the expression */
+  if (tr > 1)                                   /* wait for ENTER key or other CTRL */
+    while (getchar() >= ' ')
+      continue;
+  else
+    putchar('\n');
+  return y;
+}
+
+protected:
 
 /* step-wise evaluate x in environment e, returns value of x */
 L step(L x, L e) {
@@ -848,7 +934,7 @@ L step(L x, L e) {
       if (!(prim[ord(*f)].m & SPECIAL))         /* if the primitive is NORMAL mode, */
         x = evlis(x, e);                        /* ... then evaluate actual arguments x */
       *d = e;
-      x = prim[ord(*f)].f(x, d);                /* call the primitive with arguments x, put return value back in x */
+      x = prim[ord(*f)].f(*this, x, d);         /* call the primitive with arguments x, put return value back in x */
       e = *d;
       if (prim[ord(*f)].m & TAILCALL)           /* if the primitive is TAILCALL mode, */
         continue;                               /* ... then continue evaluating x */
@@ -905,43 +991,11 @@ L step(L x, L e) {
   return x;                                     /* return x evaluated */
 }
 
-/* trace the evaluation of x in environment e, returns its value */
-L eval(L x, L e) {
-  L y;
-  if (!tr)
-    return step(x, e);                          /* eval() -> step() tail call when not tracing */
-  y = step(x, e);
-  printf("%u: ", N-sp); print(x);               /* <stack depth>: unevaluated expression */
-  printf(" => ");       print(y);               /* => value of the expression */
-  if (tr > 1)                                   /* wait for ENTER key or other CTRL */
-    while (getchar() >= ' ')
-      continue;
-  else
-    putchar('\n');
-  return y;
-}
-
 /*----------------------------------------------------------------------------*\
  |      PRINT                                                                 |
 \*----------------------------------------------------------------------------*/
 
-/* output Lisp list t */
-void printlist(L t) {
-  putc('(', out);
-  while (1) {
-    print(car(t));
-    t = cdr(t);
-    if (T(t) == NIL)
-      break;
-    if (T(t) != CONS) {
-      fprintf(out, " . ");
-      print(t);
-      break;
-    }
-    putc(' ', out);
-  }
-  putc(')', out);
-}
+public:
 
 /* output Lisp expression x */
 void print(L x) {
@@ -963,37 +1017,26 @@ void print(L x) {
     fprintf(out, FLOAT, x);
 }
 
-/*----------------------------------------------------------------------------*\
- |      REPL                                                                  |
-\*----------------------------------------------------------------------------*/
+protected:
 
-/* entry point with Lisp initialization, error handling and REPL */
-int main() {
-  I i;
-  input("init.lisp");                           /* set input source to load when available */
-  out = stdout;
-  if (setjmp(jb))                               /* if something goes wrong before REPL, it is fatal */
-    abort();
-  sweep();                                      /* clear the pool and heap */
-  nil = box(NIL, 0);                            /* set the constant nil (empty list) */
-  tru = atom("#t");                             /* set the constant #t */
-  env = pair(tru, tru, nil);                    /* create environment with symbolic constant #t */
-  for (i = 0; prim[i].s; ++i)                   /* expand environment with primitives */
-    env = pair(atom(prim[i].s), box(PRIM, i), env);
-  using_history();
-  BREAK_ON;                                     /* enable CTRL-C break to throw error 2 */
-  i = setjmp(jb);                               /* init error handler: i is nonzero when thrown */
-  if (i) {
-    while (fin)                                 /* close all open files */
-      fclose(in[--fin]);
-    printf("ERR %u %s", i, errors[i <= ERRORS ? i : 0]);
+/* output Lisp list t */
+void printlist(L t) {
+  putc('(', out);
+  while (1) {
+    print(car(t));
+    t = cdr(t);
+    if (T(t) == NIL)
+      break;
+    if (T(t) != CONS) {
+      fprintf(out, " . ");
+      print(t);
+      break;
+    }
+    putc(' ', out);
   }
-  while (1) {                                   /* read-evel-print loop */
-    putchar('\n');
-    unwind(N);
-    i = gc();
-    snprintf(ps, sizeof(ps), "%u+%u>", i, sp-hp/8);
-    out = stdout;
-    print(eval(*push(read()), env));
-  }
+  putc(')', out);
 }
+
+};
+
+#endif

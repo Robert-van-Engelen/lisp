@@ -1,4 +1,4 @@
-# A complete Lisp in under 1k lines of C, explained
+# A complete Lisp in 1k lines of C, explained
 
 A logical continuation of the [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) project _"Lisp in 99 lines of C and how to write one yourself."_  If you're interested in writing a Lisp interpreter of your own, then you may want to check out the [tinylisp](https://github.com/Robert-van-Engelen/tinylisp) project first.  If you already did, then welcome back!
 
