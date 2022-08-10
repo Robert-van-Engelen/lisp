@@ -25,7 +25,7 @@
     (lambda (board x y)
         (set-car! (nthcdr (nth board x) y) '@)))
 
-(define clear
+(define clear!
     (lambda (board x y)
         (set-car! (nthcdr (nth board x) y) '-)))
 
@@ -74,7 +74,7 @@
                          (begin
                              (queen! board x y)
                              (solve-n board (+ x 1))
-                             (clear board x y))
+                             (clear! board x y))
                          ()))
                 (seq 0 board-size)))))
 
