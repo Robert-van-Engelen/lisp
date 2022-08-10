@@ -107,6 +107,10 @@ Without CTRL-C to break and without the [GNU readline](https://en.wikipedia.org/
 
     $ cc -o lisp lisp.c -O2
 
+A C++ REPL with [lisp.hpp](src/lisp.hpp) header-only Lisp interpreter:
+
+    $ c++ -std=c++17 lisp-repl.cpp -O2 -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
+
 ## Lisp language features
 
 ### Numbers
