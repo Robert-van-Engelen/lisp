@@ -1,5 +1,6 @@
 ; the quadratic formula
 ; (quad-solver)
+; Requires init.lisp
 
 ; (sqrt n) -- solve x^2 - n = 0 with Newton method using the Y combinator to recurse
 (defun sqrt (n)
