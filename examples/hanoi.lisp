@@ -4,10 +4,9 @@
     (lambda (n src dest spare)
         (if (eq? n 1)
             (write "Move from " src " to " dest "\n")
-            (begin
-                (hanoi (- n 1) src spare dest)
-                (hanoi 1 src dest spare)
-                (hanoi (- n 1) spare dest src)))))
+            (hanoi (- n 1) src spare dest)
+            (hanoi 1 src dest spare)
+            (hanoi (- n 1) spare dest src))))
 
 
 ; example calls for testing
