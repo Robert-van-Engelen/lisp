@@ -676,7 +676,7 @@ L f_setq(L t, L *e) {
   L v = car(t), d = *e;
   while (T(d) == CONS && !equ(v, car(car(d))))
     d = cdr(d);
-  return T(d) == CONS ? cell[ord(car(d))+1] = eval(car(cdr(t)), 1) : ERROR_UNBOUND_SYMBOL;
+  return T(d) == CONS ? cell[ord(car(d))+1] = eval(car(cdr(t)), *e) : ERROR_UNBOUND_SYMBOL;
 }
 
 L f_setcar(L t, L *_) {
