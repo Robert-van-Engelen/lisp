@@ -1,37 +1,12 @@
 ; n-queens example
 ; requires init.lisp
-; loosely based on: https://github.com/rui314/minilisp/blob/master/examples/nqueens.lisp
 
 ; supporting functions
-
-(define nth
-    (lambda (t n)
-        (if (eq? n 0)
-            (car t)
-            (nth (cdr t) (- n 1)))))
-
-(define nth-tail
-    (lambda (t n)
-        (if (eq? n 0)
-            t
-            (nth-tail (cdr t) (- n 1)))))
-
-(define iota
-    (lambda (n)
-        (seq 0 n)))
 
 (define make-list
     (lambda (n x)
         (if (< 0 n)
             (cons x (make-list (- n 1) x))
-            ())))
-
-(define for-each
-    (lambda (f t)
-        (if t
-            (begin
-                (f (car t))
-                (for-each f (cdr t)))
             ())))
 
 ; n-queens solver
@@ -40,23 +15,23 @@
     (lambda (size)
         (map1
             (lambda () (make-list size '-))
-            (iota size))))
+            (seq 0 size))))
 
-(define get
+(define at
     (lambda (board x y)
         (nth (nth board x) y)))
 
-(define set
+(define queen!
     (lambda (board x y)
-        (set-car! (nth-tail (nth board x) y) '@)))
+        (set-car! (nthcdr (nth board x) y) '@)))
 
 (define clear
     (lambda (board x y)
-        (set-car! (nth-tail (nth board x) y) '-)))
+        (set-car! (nthcdr (nth board x) y) '-)))
 
-(define set?
+(define queen?
     (lambda (board x y)
-        (eq? (get board x y) '@)))
+        (eq? (at board x y) '@)))
 
 (define show
     (lambda (board)
@@ -70,37 +45,38 @@
     (lambda (board x y)
         (any?
             (lambda (n)
-	        (or ; check if there's no conflicting queen upward
-	            (set? board n y)
-                    ; upper left
+	        (or ; check if there's no conflicting queen up
+	            (queen? board n y)
+                    ; check upper left
                     (let*
                         (z (+ y (- n x)))
                         (and
                             (not (< z 0))
-                            (set? board n z)))
-                    ; upper right
+                            (queen? board n z)))
+                    ; check upper right
                     (let* (z (+ y (- x n)))
                         (and
                             (< z board-size)
-                            (set? board n z)))))
-            (iota x))))
+                            (queen? board n z)))))
+            (seq 0 x))))
 
 (define solve-n
     (lambda (board x)
         (if (eq? x board-size)
-            ;; Problem solved
+            ; show solution
             (begin
                 (show board)
 	        (write "\n"))
-            (for-each
+            ; continue searching for solutions
+            (map1
 	        (lambda (y)
 		     (if (not (conflict? board x y))
                          (begin
-                             (set board x y)
+                             (queen! board x y)
                              (solve-n board (+ x 1))
                              (clear board x y))
                          ()))
-                (iota board-size)))))
+                (seq 0 board-size)))))
 
 (define solve
     (lambda (board)

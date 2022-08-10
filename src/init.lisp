@@ -61,6 +61,12 @@
         (if s
             (cons (car s) (append (cdr s) t))
             t)))
+(define nthcdr
+    (lambda (t n)
+        (if (eq? n 0)
+            t
+            (nthcdr (cdr t) (- n 1)))))
+(define nth (lambda (t n) (car (nthcdr t n))))
 (define rev1
     (lambda (r t)
         (if t
