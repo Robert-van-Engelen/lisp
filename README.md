@@ -58,7 +58,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     $ ./lisp
     ...
     defun
-    6452+1933>(load "nqueens.lisp")
+    6352+1929>(load "nqueens.lisp")
     ...
     (- - - - - - - @)
     (- - - @ - - - -)
@@ -71,7 +71,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
 
     done
     ()
-    5618+1904>
+    5660+1905>
 
 The prompt displays the number of free cons pair cells + free stack cells available.  The heap and stack are located in the same memory space.  Therefore, the second number is also indicative of the size of the heap space available to store new atoms and strings.
 
@@ -79,14 +79,14 @@ The prompt displays the number of free cons pair cells + free stack cells availa
 
 An execution trace displays the stack depth with each evaluation step:
 
-    6452+1933>(trace)
+    6352+1929>(trace)
     1
-    6452+1933>((curry + 1) 2 3)
-    7: curry => {1542}
+    6352+1929>((curry + 1) 2 3)
+    7: curry => {1606}
     7: + => <+>
     7: 1 => 1
     7: lambda => <lambda>
-    4: (curry + 1) => {1762}
+    4: (curry + 1) => {1856}
     5: 2 => 2
     5: 3 => 3
     4: f => <+>
@@ -326,6 +326,10 @@ Additional Lisp functions and macros are defined in [init.lisp](src/init.lisp).
     (defun <symbol> <parameters> <expr>)
 
 defines a named function with parameters and a function body.  A shorthand for `(define <symbol> (lambda <parameters> <expr>))`.
+
+    (defmacro <symbol> <parameters> <expr>)
+
+defines a named macro with parameters and a body.  A shorthand for `(define <symbol> (macro <parameters> <expr>))`.
 
     (null? x)
     (number? x)
