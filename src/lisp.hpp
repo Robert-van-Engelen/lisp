@@ -751,9 +751,9 @@ L f_setcdr(L t, L *_) {
 }
 
 L f_read(L t, L *_) {
-  L x;
-  char c = see;
+  L x; char c = see;
   see = ' ';
+  *ps = 0;
   x = read();
   see = c;
   return x;

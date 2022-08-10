@@ -690,9 +690,9 @@ L f_setcdr(L t, L *_) {
 }
 
 L f_read(L t, L *_) {
-  L x;
-  char c = see;
+  L x; char c = see;
   see = ' ';
+  *ps = 0;
   x = read();
   see = c;
   return x;
@@ -968,9 +968,9 @@ void print(L x) {
 \*----------------------------------------------------------------------------*/
 
 /* entry point with Lisp initialization, error handling and REPL */
-int main() {
+int main(int argc, char **argv) {
   I i;
-  input("init.lisp");                           /* set input source to load when available */
+  input(argc > 1 ? argv[1] : "init.lisp");      /* set input source to load when available */
   out = stdout;
   if (setjmp(jb))                               /* if something goes wrong before REPL, it is fatal */
     abort();
