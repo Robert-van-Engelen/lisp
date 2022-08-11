@@ -296,11 +296,11 @@ disables tracing (0), enables tracing (1) and enables tracing with ENTER key pre
 
     (catch <expr>)
 
-catch exceptions in the evaluation of an expression, returns the value of the expression or `(ERR . n)` for positive error code `n`.
+catch exceptions in the evaluation of an expression, returns the value of the expression or `(ERR . n)` for nonzero error code `n`.
 
     (throw n)
 
-throws error `n`, where `n` must be a positive integer.
+throws error `n`, where `n` is a nonzero integer.
 
 ### Statement sequencing and repetition
 

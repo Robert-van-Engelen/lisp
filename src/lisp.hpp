@@ -133,12 +133,12 @@ static I equ(L x, L y) {
 public:
 
 /* raise an error code, jump to the most recent setjmp */
-static L err(I i) {
+static L err(int i) {
   throw i;
 }
 
 /* return error string for error code or empty string */
-static const char *error(I i) {
+static const char *error(int i) {
   switch (i) {
     case 1: return "not a pair";
     case 2: return "break";
@@ -367,7 +367,7 @@ L closure(L v, L x, L e) {
 }
 
 /* construct a macro, returns a NaN-boxed MACR */
-L macro(L v, L x, L e) {
+L macro(L v, L x) {
   return box(MACR, ord(cons(v, x)));
 }
 
@@ -680,8 +680,8 @@ L f_lambda(L t, L *e) {
   return closure(car(t), car(cdr(t)), *e);
 }
 
-L f_macro(L t, L *e) {
-  return macro(car(t), car(cdr(t)), *e);
+L f_macro(L t, L *_) {
+  return macro(car(t), car(cdr(t)));
 }
 
 L f_define(L t, L *e) {
@@ -698,7 +698,7 @@ L f_env(L t, L *e) {
 }
 
 L f_let(L t, L *e) {
-  L x, *p;
+  L *p;
   for (p = push(*e); more(t); t = cdr(t))
     *p = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *p);
   *e = pop();
@@ -706,14 +706,13 @@ L f_let(L t, L *e) {
 }
 
 L f_leta(L t, L *e) {
-  L x;
   for (; more(t); t = cdr(t))
     *e = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *e);
   return T(t) == NIL ? nil : car(t);
 }
 
 L f_letrec(L t, L *e) {
-  L x, s, *p;
+  L s, *p;
   for (p = push(*e), s = t; more(s); s = cdr(s))
     *p = pair(car(car(s)), nil, *p);
   for (s = *p; !equ(s, *e); s = cdr(s), t = cdr(t))
@@ -723,7 +722,6 @@ L f_letrec(L t, L *e) {
 }
 
 L f_letreca(L t, L *e) {
-  L x;
   for (; more(t); t = cdr(t)) {
     *e = pair(car(car(t)), nil, *e);
     cell[ord(car(*e))+1] = eval(f_begin(cdr(car(t)), e), *e);
@@ -820,7 +818,7 @@ L f_catch(L t, L *e) {
   try {
     x = eval(car(t), *e);
   }
-  catch (I i) {
+  catch (int i) {
     x = cons(atom("ERR"), i);
   }
   sp = savedsp;
@@ -828,7 +826,7 @@ L f_catch(L t, L *e) {
 }
 
 L f_throw(L t, L *_) {
-  throw (I)num(car(t));
+  throw static_cast<int>(num(car(t)));
 }
 
 struct QUIT { };

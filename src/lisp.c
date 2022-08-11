@@ -99,7 +99,7 @@ I equ(L x, L y) {
 jmp_buf jb;
 
 /* raise an error code, jump to the most recent setjmp */
-L err(I i) {
+L err(int i) {
   longjmp(jb, i);
 }
 
@@ -321,7 +321,7 @@ L closure(L v, L x, L e) {
 }
 
 /* construct a macro, returns a NaN-boxed MACR */
-L macro(L v, L x, L e) {
+L macro(L v, L x) {
   return box(MACR, ord(cons(v, x)));
 }
 
@@ -618,8 +618,8 @@ L f_lambda(L t, L *e) {
   return closure(car(t), car(cdr(t)), *e);
 }
 
-L f_macro(L t, L *e) {
-  return macro(car(t), car(cdr(t)), *e);
+L f_macro(L t, L *_) {
+  return macro(car(t), car(cdr(t)));
 }
 
 L f_define(L t, L *e) {
@@ -636,7 +636,7 @@ L f_env(L t, L *e) {
 }
 
 L f_let(L t, L *e) {
-  L x, *p;
+  L *p;
   for (p = push(*e); more(t); t = cdr(t))
     *p = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *p);
   *e = pop();
@@ -644,14 +644,13 @@ L f_let(L t, L *e) {
 }
 
 L f_leta(L t, L *e) {
-  L x;
   for (; more(t); t = cdr(t))
     *e = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *e);
   return T(t) == NIL ? nil : car(t);
 }
 
 L f_letrec(L t, L *e) {
-  L x, s, *p;
+  L s, *p;
   for (p = push(*e), s = t; more(s); s = cdr(s))
     *p = pair(car(car(s)), nil, *p);
   for (s = *p; !equ(s, *e); s = cdr(s), t = cdr(t))
@@ -661,7 +660,6 @@ L f_letrec(L t, L *e) {
 }
 
 L f_letreca(L t, L *e) {
-  L x;
   for (; more(t); t = cdr(t)) {
     *e = pair(car(car(t)), nil, *e);
     cell[ord(car(*e))+1] = eval(f_begin(cdr(car(t)), e), *e);
@@ -755,18 +753,18 @@ L f_trace(L t, L *e) {
 }
 
 L f_catch(L t, L *e) {
-  L x; I i, savedsp = sp;
+  L x; I savedsp = sp;
   jmp_buf savedjb;
   memcpy(savedjb, jb, sizeof(jb));
-  i = setjmp(jb);
-  x = i ? cons(atom("ERR"), i) : eval(car(t), *e);
+  x = setjmp(jb);
+  x = x ? cons(atom("ERR"), x) : eval(car(t), *e);
   memcpy(jb, savedjb, sizeof(jb));
   sp = savedsp;
   return x;
 }
 
 L f_throw(L t, L *_) {
-  longjmp(jb, (I)num(car(t)));
+  longjmp(jb, num(car(t)));
 }
 
 L f_quit(L t, L *_) {
@@ -967,7 +965,7 @@ void print(L x) {
 
 /* entry point with Lisp initialization, error handling and REPL */
 int main(int argc, char **argv) {
-  I i;
+  int i;
   input(argc > 1 ? argv[1] : "init.lisp");      /* set input source to load when available */
   out = stdout;
   if (setjmp(jb))                               /* if something goes wrong before REPL, it is fatal */
@@ -984,7 +982,7 @@ int main(int argc, char **argv) {
   if (i) {
     while (fin)                                 /* close all open files */
       fclose(in[--fin]);
-    printf("ERR %u %s", i, errors[i <= ERRORS ? i : 0]);
+    printf("ERR %d %s", i, errors[i > 0 && i <= ERRORS ? i : 0]);
   }
   while (1) {                                   /* read-evel-print loop */
     putchar('\n');
