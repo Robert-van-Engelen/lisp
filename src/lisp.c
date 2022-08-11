@@ -827,9 +827,10 @@ struct {
 
 /* step-wise evaluate x in environment e, returns value of x, tail-call optimized */
 L step(L x, L e) {
-  L *f, v, *d, *z; I i = sp;                    /* save sp to unwind the stack back to sp afterwards */
+  L *f, v, *d, *y, *z; I i = sp;                /* save sp to unwind the stack back to sp afterwards */
   f = push(nil);                                /* protect f from getting GC'ed */
   d = push(nil);                                /* protect d from getting GC'ed */
+  y = push(nil);                                /* protect y from getting GC'ed */
   z = push(nil);                                /* protect z from getting GC'ed */
   while (1) {
     if (T(x) == ATOM) {                         /* if x is an atom, then return its associated value */
@@ -863,17 +864,16 @@ L step(L x, L e) {
         x = cdr(x);
       }
       if (T(v) == CONS) {                       /* condinue binding v if x is after a dot (... . x) by evaluating x */
-        L *y = push(eval(x, e));                /* evaluate x and save its value y to protect it from getting GC'ed*/
+        *y = eval(x, e);                        /* evaluate x and save its value y to protect it from getting GC'ed*/
         while (T(v) == CONS && T(*y) == CONS) {
           *d = pair(car(v), car(*y), *d);       /* add new binding to the front of d */
           v = cdr(v);
           *y = cdr(*y);
         }
-        pop();                                  /* pop protection of y */
         if (T(v) == CONS)                       /* error if insufficient actual arguments x are provided */
           ERROR_ARGUMENTS;
       }
-      if (T(x) == CONS)                         /* if more arguments x are provided then evaluate them all */
+      else if (T(x) == CONS)                    /* if more arguments x are provided then evaluate them all */
         x = evlis(x, e);
       else if (T(x) != NIL)                     /* else if last argument x is after a dot (... . x) then evaluate x */
         x = eval(x, e);
@@ -894,7 +894,7 @@ L step(L x, L e) {
         ERROR_ARGUMENTS;
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
-      *z = x = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *z to protect */
+      *y = x = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *z to protect */
     }
   }
   unwind(i);                                    /* unwind the stack to allow GC to collect unused temporaries */
