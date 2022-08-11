@@ -43,8 +43,7 @@
         (if board
             (begin
                 (write (car board) "\n")
-                (show (cdr board)))
-            ())))
+                (show (cdr board))))))
 
 (define conflict?
     (lambda (board x y)
@@ -55,12 +54,12 @@
                     ; check upper left
                     (let*
                         (z (+ y (- n x)))
-                        (and
+                        (if
                             (not (< z 0))
                             (queen? board n z)))
                     ; check upper right
                     (let* (z (+ y (- x n)))
-                        (and
+                        (if
                             (< z board-size)
                             (queen? board n z)))))
             (seq 0 x))))
@@ -79,8 +78,7 @@
                          (begin
                              (queen! board x y)
                              (solve-n board (+ x 1))
-                             (clear! board x y))
-                         ()))
+                             (clear! board x y))))
                 (seq 0 board-size)))))
 
 (define solve

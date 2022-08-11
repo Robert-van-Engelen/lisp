@@ -9,8 +9,7 @@
         - load Lisp source code files
         - execution tracing to display Lisp evaluation steps
         - mark-sweep garbage collector to recycle unused cons pair cells
-        - compacting garbage collector to recycle unused atoms and strings
-        - Lisp memory is a single cell[] array, no malloc() and free() calls */
+        - compacting garbage collector to recycle unused atoms and strings */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -640,8 +639,7 @@ L f_let(L t, L *e) {
   L x, *p;
   for (p = push(*e); more(t); t = cdr(t))
     *p = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *p);
-  *e = *p;
-  pop();
+  *e = pop();
   return T(t) == NIL ? nil : car(t);
 }
 
@@ -658,8 +656,7 @@ L f_letrec(L t, L *e) {
     *p = pair(car(car(s)), nil, *p);
   for (s = *p; !equ(s, *e); s = cdr(s), t = cdr(t))
     cell[ord(car(s))+1] = eval(f_begin(cdr(car(t)), p), *p);
-  *e = *p;
-  pop();
+  *e = pop();
   return T(t) == NIL ? nil : car(t);
 }
 
@@ -751,9 +748,10 @@ L f_load(L t, L *e) {
   return input(A+ord(x)) ? cons(atom("load"), cons(x, nil)) : ERROR_ARGUMENTS;
 }
 
-L f_trace(L t, L *_) {
+L f_trace(L t, L *e) {
+  I savedtr = tr;
   tr = T(t) == NIL ? 1 : car(t);
-  return tr;
+  return more(t) ? t = eval(car(cdr(t)), *e), tr = savedtr, t : tr;
 }
 
 L f_catch(L t, L *e) {
@@ -818,7 +816,7 @@ struct {
   {"write",    f_write,   NORMAL},              /* (write x1 x2 ... xk) => () -- prints without quoting strings */
   {"string",   f_string,  NORMAL},              /* (string x1 x2 ... xk) => <string> -- string of x1 x2 ... xk */
   {"load",     f_load,    NORMAL},              /* (load <name>) -- loads file <name> (an atom or string name) */
-  {"trace",    f_trace,   NORMAL},              /* (trace 0) -- off, (trace 1) -- on, (trace 2) -- keypress */
+  {"trace",    f_trace,   SPECIAL},             /* (trace flag [<expr>]) -- flag 0=off, 1=on, 2=keypress */
   {"catch",    f_catch,   SPECIAL},             /* (catch <expr>) => <value-of-expr> if no exception else (ERR . n) */
   {"throw",    f_throw,   NORMAL},              /* (throw n) -- raise exception error code n (integer > 0) */
   {"quit",     f_quit,    NORMAL},              /* (quit) -- bye! */
@@ -849,7 +847,7 @@ L step(L x, L e) {
         x = evlis(x, e);                        /* ... then evaluate actual arguments x */
       *d = e;
       x = prim[ord(*f)].f(x, d);                /* call the primitive with arguments x, put return value back in x */
-      e = *d;
+      *z = e = *d;                              /* the new environment e is d to evaluate x, put in *z to protect */
       if (prim[ord(*f)].m & TAILCALL)           /* if the primitive is TAILCALL mode, */
         continue;                               /* ... then continue evaluating x */
       break;                                    /* else break to return value x */

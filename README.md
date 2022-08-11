@@ -288,8 +288,9 @@ prints the expressions.  Strings are not quoted.
 ### Debugging
 
     (trace <0|1|2>)
+    (trace <0|1|2> <expr>)
 
-disables tracing (0), enables tracing (1) and enables tracing with ENTER key press (2).
+disables tracing (0), enables tracing (1) and enables tracing with ENTER key press (2).  The first form enables or disables tracing of expression evaluation.  The second form enables or disables tracing of `<expr>` specifically.
 
 ### Exceptions
 
