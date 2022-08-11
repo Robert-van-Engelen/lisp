@@ -5,15 +5,20 @@
 
 (define make-list
     (lambda (n x)
-        (if (< 0 n)
-            (cons x (make-list (- n 1) x))
-            ())))
+        (letrec*
+            ; make-list calls tail-recursive n*x
+            (n*x
+                (lambda (n x t)
+                    (if (< 0 n)
+                        (n*x (- n 1) x (cons x t))
+                        t)))
+            (n*x n x ()))))
 
 ; n-queens solver
 
 (define make-board
     (lambda (size)
-        (map1
+        (mapcar
             (lambda () (make-list size '-))
             (seq 0 size))))
 
@@ -68,7 +73,7 @@
                 (show board)
 	        (write "\n"))
             ; continue searching for solutions
-            (map1
+            (mapcar
 	        (lambda (y)
 		     (if (not (conflict? board x y))
                          (begin
