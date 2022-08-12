@@ -846,11 +846,11 @@ struct {
 
 /* step-wise evaluate x in environment e, returns value of x, tail-call optimized */
 L step(L x, L e) {
-  L *f, v, *d, *y, *z; I i = sp;                /* save sp to unwind the stack back to sp afterwards */
-  f = push(nil);                                /* protect f from getting GC'ed */
-  d = push(nil);                                /* protect d from getting GC'ed */
-  y = push(nil);                                /* protect y from getting GC'ed */
-  z = push(nil);                                /* protect z from getting GC'ed */
+  L *f, v, *d, *y, *z; I k = sp;                /* save sp to unwind the stack back to sp afterwards */
+  f = push(nil);                                /* protect closure f from getting GC'ed */
+  d = push(nil);                                /* protect new bindings d from getting GC'ed */
+  y = push(nil);                                /* protect alias y of new x from getting GC'ed */
+  z = push(nil);                                /* protect alias z of new e from getting GC'ed */
   while (1) {
     if (T(x) == ATOM) {                         /* if x is an atom, then return its associated value */
       x = assoc(x, e);
@@ -861,12 +861,13 @@ L step(L x, L e) {
     *f = eval(car(x), e);                       /* the function/primitive is at the head of the list */
     x = cdr(x);                                 /* ... and its actual arguments are the rest of the list */
     if (T(*f) == PRIM) {                        /* if f is a primitive, then apply it to the actual arguments x */
-      if (!(prim[ord(*f)].m & SPECIAL))         /* if the primitive is NORMAL mode, */
+      I i = ord(*f);
+      if (!(prim[i].m & SPECIAL))               /* if the primitive is NORMAL mode, */
         x = evlis(x, e);                        /* ... then evaluate actual arguments x */
-      *d = e;
-      x = prim[ord(*f)].f(x, d);                /* call the primitive with arguments x, put return value back in x */
-      *z = e = *d;                              /* the new environment e is d to evaluate x, put in *z to protect */
-      if (prim[ord(*f)].m & TAILCALL)           /* if the primitive is TAILCALL mode, */
+      *z = e;
+      x = *y = prim[i].f(x, z);                 /* call the primitive with arguments x, put return value back in x */
+      e = *z;                                   /* the new environment e is d to evaluate x, put in *z to protect */
+      if (prim[i].m & TAILCALL)                 /* if the primitive is TAILCALL mode, */
         continue;                               /* ... then continue evaluating x */
       break;                                    /* else break to return value x */
     }
@@ -898,8 +899,8 @@ L step(L x, L e) {
         x = eval(x, e);
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
-      x = cdr(car(*f));                         /* tail recursion optimization: evaluate the body x of closure f next */
-      *z = e = *d;                              /* the new environment e is d to evaluate x, put in *z to protect */
+      x = *y = cdr(car(*f));                    /* tail recursion optimization: evaluate the body x of closure f next */
+      e = *z = *d;                              /* the new environment e is d to evaluate x, put in *z to protect */
     }
     else {                                      /* else if f is a macro, then */
       *d = env;                                 /* construct an extended local environment d from global env */
@@ -913,10 +914,10 @@ L step(L x, L e) {
         ERROR_ARGUMENTS;
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
-      *y = x = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *z to protect */
+      x = *y = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *z to protect */
     }
   }
-  unwind(i);                                    /* unwind the stack to allow GC to collect unused temporaries */
+  unwind(k);                                    /* unwind the stack to allow GC to collect unused temporaries */
   return x;                                     /* return x evaluated */
 }
 
