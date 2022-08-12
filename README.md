@@ -58,7 +58,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     $ ./lisp
     ...
     defun
-    6352+1929>(load "nqueens.lisp")
+    6352+1932>(load "nqueens.lisp")
     ...
     (- - - - - - - @)
     (- - - @ - - - -)
@@ -79,19 +79,19 @@ The prompt displays the number of free cons pair cells + free stack cells availa
 
 An execution trace displays the stack depth with each evaluation step:
 
-    6352+1929>(trace)
+    6352+1932>(trace)
     1
-    6352+1929>((curry + 1) 2 3)
-    7: curry => {1606}
-    7: + => <+>
-    7: 1 => 1
-    7: lambda => <lambda>
-    4: (curry + 1) => {1856}
-    5: 2 => 2
-    5: 3 => 3
-    4: f => <+>
-    5: x => 1
-    5: args => (2 3)
+    6352+1932>((curry + 1) 2 3)
+    9: curry => {1606}
+    9: + => <+>
+    9: 1 => 1
+    9: lambda => <lambda>
+    5: (curry + 1) => {1856}
+    6: 2 => 2
+    6: 3 => 3
+    5: f => <+>
+    6: x => 1
+    6: args => (2 3)
     1: ((curry + 1) 2 3) => 6
     6
 
@@ -110,6 +110,10 @@ Without CTRL-C to break and without the [GNU readline](https://en.wikipedia.org/
 A C++ REPL with [lisp.hpp](src/lisp.hpp) header-only Lisp interpreter:
 
     $ c++ -std=c++17 lisp-repl.cpp -O2 -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
+
+## Testing
+
+    cd tests && ./runtests.sh
 
 ## Lisp language features
 
@@ -370,6 +374,7 @@ returns a list of numbers `n1` up to but excluding `n2`, with an optional step `
     (filter f t)
     (all? f t)
     (any? f t)
+    (mapcar f t)
     (map f t1 t2 ... tn)
     (zip t1 t2 ... tn)
 
@@ -381,7 +386,7 @@ is the fixed-point [Y combinator](https://en.wikipedia.org/wiki/Fixed-point_comb
 
     (reveal f)
 
-reveals the contents of `f` by displaying the body of the `lambda` of a closure `f` and the body of a `macro` `f`.
+reveals the contents of `f` by displaying the `lambda` of a closure `f` and the body of a `macro` `f`.
 
 ## Lisp memory management
 

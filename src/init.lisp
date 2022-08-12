@@ -2,7 +2,7 @@
 (define number? (lambda (x) (eq? (type x) 1)))
 (define symbol? (lambda (x) (eq? (type x) 2)))
 (define string? (lambda (x) (eq? (type x) 3)))
-(define pair? (lambda (x) (eq? (type x) 6)))
+(define pair? (lambda (x) (eq? (type x) 4)))
 (define atom? (lambda (x) (not (pair? x))))
 (define list?
     (lambda (x)
@@ -40,7 +40,7 @@
                 (- n 1)
                 n))))
 (define ceiling (lambda (n) (- 0 (floor (- 0 n)))))
-(define round (lambda (n) (+ (floor n) 0.5)))
+(define round (lambda (n) (floor (+ n 0.5))))
 (define mod (lambda (n m) (- n (* m (int (/ n m))))))
 (define gcd
     (lambda (n m)
@@ -128,19 +128,19 @@
                 (f (car t))
                 (any? f (cdr t)))
             ())))
-(define map1
+(define mapcar
     (lambda (f t)
         (if t
-            (cons (f (car t)) (map1 f (cdr t)))
+            (cons (f (car t)) (mapcar f (cdr t)))
             ())))
 (define map
     (lambda (f . args)
         (if (any? null? args)
             ()
             (let*
-                (mapcar (map1 car args))
-                (mapcdr (map1 cdr args))
-                (cons (f . mapcar) (map f . mapcdr))))))
+                (x (mapcar car args))
+                (t (mapcar cdr args))
+                (cons (f . x) (map f . t))))))
 (define zip (lambda args (map list . args)))
 (define seq
     (lambda (n m)

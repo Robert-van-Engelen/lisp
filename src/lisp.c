@@ -360,9 +360,9 @@ I more(L t) {
 I fin = 0;
 FILE *in[10];
 
-/* specify an input file to parse */
+/* specify an input file to parse and try to open it */
 FILE *input(const char *s) {
-  return fin > 9 ? NULL : (in[fin++] = fopen(s, "r"));
+  return fin <= 9 && (in[fin] = fopen(s, "r")) ? in[fin++] : NULL;
 }
 
 /* tokenization buffer and the next character that we see */

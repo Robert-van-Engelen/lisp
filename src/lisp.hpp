@@ -404,9 +404,9 @@ I more(L t) {
 
 public:
 
-/* specify an input file to parse */
+/* specify an input file to parse and try to open it */
 FILE *input(const char *s) {
-  return fin > 9 ? NULL : (in[fin++] = fopen(s, "r"));
+  return fin <= 9 && (in[fin] = fopen(s, "r")) ? in[fin++] : NULL;
 }
 
 /* close all open input files */
