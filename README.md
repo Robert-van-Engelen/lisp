@@ -530,7 +530,7 @@ The compacting stage is performed as follows.
 
 ### Compacting garbage collection to recycle the atom/string heap
 
-To compact the heap, we construct a linked list of cells that refer to the same atom or string.  This serves two purposes.  First, if the linked list is empty then there are no cells in use that refer to the atom or string.  The atom or string can be removed.  Second, compacting the heap means moving atoms and strings down to keep only the used atoms and strings stored in the heap.  All holes left by unused atoms and strings are therefore filled.  The linked list is therefore traversed to update each cell references to the new location of the atom or string.
+To compact the heap, we construct a linked list of cells that refer to the same atom or string.  This serves two purposes.  First, if the linked list is empty then there are no cells in use that refer to the atom or string.  The atom or string can be removed.  Second, compacting the heap means moving atoms and strings down to keep only the used atoms and strings stored in the heap.  All holes left by unused atoms and strings are filled.  The linked list is traversed to update each `ATOM` and `STRG` cell to reference the new location of the atom or string on the heap:
 
     /* compacting garbage collector recycles heap by removing unused atoms/strings and by moving used ones */
     void compact() {
@@ -559,7 +559,7 @@ To compact the heap, we construct a linked list of cells that refer to the same 
       }
     }
 
-Since the pool and stack share the same `cell[]` array, the linked lists are simply formed by indices to the cells to update during compaction.
+Since the pool and stack share the same `cell[]` array, the linked lists jut contain `cell[]` indices to the `ATOM` and `STRG` cells to update during compaction.  The runtime cost is in the order of the number of `ATOM` and `STRG` cells.  Memory overhead of this method is limited to an index per atom/string on the heap of width `R`.  This space is only used during compaction.  It could serve a dual purpose such as a length field of the atom/string e.g. to store binary data that doesn't end with a \0.  This would require marking the length with a bit so that the length can serve as a sentinel instead of `N` to restore the length after compaction.
 
 ### Alternative: non-recursive mark-sweep garbage collection using pointer reversal
 
