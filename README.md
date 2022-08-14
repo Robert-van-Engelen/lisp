@@ -135,7 +135,7 @@ Strings are "-quoted and may contain `\a`, `\b`, `\t`, `\n`, `\v`, `\f` and `\r`
 
     (string x1 x2 ... xk)
 
-returns a string concatenation of the specified symbols, strings and/or numbers.  Arguments may be lists containing a sequence of 8-bit character codes (ASCII/UTF-8) to construct a string.
+returns a string concatenation of the specified symbols, strings and/or numbers.  Arguments can be lists containing a sequence of 8-bit character codes (ASCII/UTF-8) to construct a string.
 
 ### Lists
 
@@ -186,9 +186,9 @@ returns the integer part of a number `n`.
 
 ### Logic
 
-    (< x1 x2)
+    (< x y)
 
-returns `#t` (true) if `x1` < `x2`.  Otherwise, returns `()` (empty list means false).  The ordering among values of different types is as follows: () < number < primitive < symbol/string < pair/list < closure < macro.
+returns `#t` (true) if `x` < `y`.  Otherwise, returns `()` (empty list means false).  The ordering among values of different types is as follows: () < number < primitive < symbol/string < pair/list < closure < macro.
 
     (eq? x y)
 
@@ -294,7 +294,7 @@ prints the expressions.  Strings are not quoted.
     (trace <0|1|2>)
     (trace <0|1|2> <expr>)
 
-disables tracing (0), enables tracing (1) and enables tracing with ENTER key press (2).  The first form enables or disables tracing of expression evaluation.  The second form enables or disables tracing of `<expr>` specifically.
+disables tracing (0), enables tracing (1), and enables tracing with ENTER key press (2).  The first form enables or disables tracing of expression evaluation.  The second form enables or disables tracing of `<expr>` specifically.
 
 ### Exceptions
 
@@ -320,7 +320,7 @@ while `x` is not `()` (meaning true), evaluates expressions `y`.  Returns the la
 
     (type <expr>)
 
-returns a value between 0 and 9 to identify the type of `<expr>`.
+returns a value -1 (nil), 0 (number), 1 (primitive), 2 (symbol), 3 (string), 4 (cons pair), 6 (closure) and 7 (macro) to identify the type of `<expr>`.
 
 ### Quit
 

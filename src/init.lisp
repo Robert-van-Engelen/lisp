@@ -1,5 +1,5 @@
 (define null? not)
-(define number? (lambda (x) (eq? (type x) 1)))
+(define number? (lambda (x) (eq? (type x) 0)))
 (define symbol? (lambda (x) (eq? (type x) 2)))
 (define string? (lambda (x) (eq? (type x) 3)))
 (define pair? (lambda (x) (eq? (type x) 4)))

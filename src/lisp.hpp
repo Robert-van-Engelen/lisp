@@ -573,7 +573,7 @@ L evlis(L t, L e) {
 
 L f_type(L t, L *_) {
   L x = car(t);
-  return T(x) == NIL ? 0 : T(x) >= ATOM && T(x) <= MACR ? T(x) - ATOM + 2 : 1;
+  return T(x) == NIL ? -1.0 : T(x) >= PRIM && T(x) <= MACR ? T(x) - PRIM + 1 : 0.0;
 }
 
 L f_ident(L t, L *_) {
