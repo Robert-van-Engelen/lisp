@@ -135,7 +135,7 @@ Strings are "-quoted and may contain `\a`, `\b`, `\t`, `\n`, `\v`, `\f` and `\r`
 
     (string x1 x2 ... xk)
 
-returns a string concatenation of the specified symbols, strings and/or numbers.  One ore more list arguments `x` may contain 8-bit character codes (ASCII/UTF-8) to construct a string.
+returns a string concatenation of the specified symbols, strings and/or numbers.  Arguments may be lists containing a sequence of 8-bit character codes (ASCII/UTF-8) to construct a string.
 
 ### Lists
 
@@ -186,9 +186,9 @@ returns the integer part of a number `n`.
 
 ### Logic
 
-    (< n1 n2)
+    (< x1 x2)
 
-returns `#t` (true) if numbers `n1` < `n2`.  Otherwise, returns `()` (empty list means false).
+returns `#t` (true) if `x1` < `x2`.  Otherwise, returns `()` (empty list means false).  The ordering among values of different types is as follows: () < number < primitive < symbol/string < pair/list < closure < macro.
 
     (eq? x y)
 

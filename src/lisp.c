@@ -564,7 +564,10 @@ L f_int(L t, L *_) {
 }
 
 L f_lt(L t, L *_) {
-  return car(t) - car(cdr(t)) < 0 ? tru : nil;
+  L x = car(t), y = car(cdr(t));
+  return (((T(x) & ~(ATOM^STRG)) == ATOM && (T(y) & ~(ATOM^STRG)) == ATOM) ? strcmp(A+ord(x), A+ord(y)) < 0 :
+      x == x && y == y ? x < y : /* x == x is false when x is NaN i.e. a tagged Lisp expression */
+      *(int64_t*)&x < *(int64_t*)&y) ? tru : nil;
 }
 
 L f_eq(L t, L *_) {
@@ -721,7 +724,7 @@ L f_string(L t, L *_) {
     else if (T(x) == CONS)
       for (; T(x) == CONS; x = cdr(x))
         ++i;
-    else if (T(x) != PRIM && (T(x) & ~(CONS^MACR)) != CONS && T(x) != NIL)
+    else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(buf, sizeof(buf), FLOAT, x);
   }
   push(t);
@@ -734,7 +737,7 @@ L f_string(L t, L *_) {
     else if (T(x) == CONS)
       for (; T(x) == CONS; x = cdr(x))
         *(A+i++) = car(x);
-    else if (T(x) != PRIM && (T(x) & ~(CONS^MACR)) != CONS && T(x) != NIL)
+    else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(A+i, sizeof(buf), FLOAT, x);
   }
   *(A+i) = 0;
