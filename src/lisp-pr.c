@@ -174,7 +174,7 @@ void mark(I i) {
           (k = ord(cell[i]),                            /* or if car is an already used pair */
            used[k/64] & 1 << k/2%32))
         if ((T(cell[++i]) & ~(CONS^MACR)) != CONS ||    /* then increment i, if cdr cell[i] does not refer to a pair */
-            (k = ord(cell[i]),                          /* or if cdr is an already used pair*/
+            (k = ord(cell[i]),                          /* or if cdr is an already used pair */
              used[k/64] & 1 << k/2%32))
           break;                                        /* then break to go back up the reversed pointers */
       cell[i] = box(T(cell[i]), j);             /* reverse the car (even i) or the cdr (odd i) pointer */
@@ -653,8 +653,8 @@ L f_assoc(L t, L *_) {
   return assoc(car(t), car(cdr(t)));
 }
 
-L f_env(L t, L *e) {
-  return env;
+L f_env(L _, L *e) {
+  return *e;
 }
 
 L f_let(L t, L *e) {
@@ -887,7 +887,7 @@ L step(L x, L e) {
         x = cdr(x);
       }
       if (T(v) == CONS) {                       /* condinue binding v if x is after a dot (... . x) by evaluating x */
-        *y = eval(x, e);                        /* evaluate x and save its value y to protect it from getting GC'ed*/
+        *y = eval(x, e);                        /* evaluate x and save its value y to protect it from getting GC'ed */
         while (T(v) == CONS && T(*y) == CONS) {
           *d = pair(car(v), car(*y), *d);       /* add new binding to the front of d */
           v = cdr(v);

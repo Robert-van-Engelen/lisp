@@ -563,7 +563,7 @@ Since the pool and stack share the same `cell[]` array, the linked lists jut con
 
 ### Alternative: non-recursive mark-sweep garbage collection using pointer reversal
 
-Non-recursive mark-sweep with pointer reversal has the advantage that no additional memory (a stack) is required.  This is especially important when the call stack size is limited in practice.  After all, a failure in garbage collection is not recoverable.  By constrast, recursion in Lisp `eval` pushes values on the Lisp cell stack and is therefore practically limited.  When the Lisp stack is full a recoverable exception is thrown.
+Non-recursive mark-sweep with pointer reversal has the advantage that no additional memory (a stack) is required.  This is especially important when the call stack size is limited in practice.  After all, a failure in garbage collection is not recoverable.  By constrast, recursion in Lisp `eval` pushes values on the Lisp cell stack and is therefore practically limited.  When the Lisp stack is full a recoverable exception is thrown, but a failure in garbage collection is fatal when the stack is full.
 
 I couldn't find an acceptable example of a mark-sweep garbage collector using pointer reversal.  After tinkering a bit with different variations of the same theme, I came up with the following algorithm and implementation that is both elegant and efficient:
 
@@ -580,7 +580,7 @@ I couldn't find an acceptable example of a mark-sweep garbage collector using po
               (k = ord(cell[i]),                            /* or if car is an already used pair */
                used[k/64] & 1 << k/2%32))
             if ((T(cell[++i]) & ~(CONS^MACR)) != CONS ||    /* then increment i, if cdr cell[i] does not refer to a pair */
-                (k = ord(cell[i]),                          /* or if cdr is an already used pair*/
+                (k = ord(cell[i]),                          /* or if cdr is an already used pair */
                  used[k/64] & 1 << k/2%32))
               break;                                        /* then break to go back up the reversed pointers */
           cell[i] = box(T(cell[i]), j);             /* reverse the car (even i) or the cdr (odd i) pointer */

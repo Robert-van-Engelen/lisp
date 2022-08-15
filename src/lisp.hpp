@@ -696,8 +696,8 @@ L f_assoc(L t, L *_) {
   return assoc(car(t), car(cdr(t)));
 }
 
-L f_env(L t, L *e) {
-  return env;
+L f_env(L _, L *e) {
+  return *e;
 }
 
 L f_let(L t, L *e) {
@@ -959,7 +959,7 @@ L step(L x, L e) {
         x = cdr(x);
       }
       if (T(v) == CONS) {                       /* condinue binding v if x is after a dot (... . x) by evaluating x */
-        *y = eval(x, e);                        /* evaluate x and save its value y to protect it from getting GC'ed*/
+        *y = eval(x, e);                        /* evaluate x and save its value y to protect it from getting GC'ed */
         while (T(v) == CONS && T(*y) == CONS) {
           *d = pair(car(v), car(*y), *d);       /* add new binding to the front of d */
           v = cdr(v);
