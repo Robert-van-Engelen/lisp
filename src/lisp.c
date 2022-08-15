@@ -639,10 +639,9 @@ L f_env(L _, L *e) {
 }
 
 L f_let(L t, L *e) {
-  L *p;
-  for (p = push(*e); more(t); t = cdr(t))
-    *p = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *p);
-  *e = pop();
+  L d = *e;
+  for (; more(t); t = cdr(t))
+    *e = pair(car(car(t)), eval(f_begin(cdr(car(t)), &d), d), *e);
   return T(t) == NIL ? nil : car(t);
 }
 
@@ -653,12 +652,11 @@ L f_leta(L t, L *e) {
 }
 
 L f_letrec(L t, L *e) {
-  L s, *p;
-  for (p = push(*e), s = t; more(s); s = cdr(s))
-    *p = pair(car(car(s)), nil, *p);
-  for (s = *p; !equ(s, *e); s = cdr(s), t = cdr(t))
-    cell[ord(car(s))+1] = eval(f_begin(cdr(car(t)), p), *p);
-  *e = pop();
+  L s;
+  for (s = t; more(s); s = cdr(s))
+    *e = pair(car(car(s)), nil, *e);
+  for (s = *e; more(t); s = cdr(s), t = cdr(t))
+    cell[ord(car(s))+1] = eval(f_begin(cdr(car(t)), e), *e);
   return T(t) == NIL ? nil : car(t);
 }
 
