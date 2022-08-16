@@ -6,12 +6,12 @@
 
 (defmacro apply fargs
     (letrec*
-        (del (lambda (t)
+        (last (lambda (t)
             (if (cdr t)
-                (del (cdr t))
+                (last (cdr t))
                 t)))
-        (add (lambda (t s)
+        (app (lambda (t s)
             (if (cdr t)
-                (cons (car t) (add (cdr t) s))
+                (cons (car t) (app (cdr t) s))
                 s)))
-        (list 'let* (cons '_ (del fargs)) (add fargs '_))))
+        (list 'let* (cons '_ (last fargs)) (app fargs '_))))
