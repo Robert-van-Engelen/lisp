@@ -3,6 +3,7 @@
 ; Requires init.lisp
 
 ; (sqrt n) -- solve x^2 - n = 0 with Newton method using the Y combinator to recurse
+; ... we could add math.h sqrt() as a Lisp primitive, but what's the fun in that?
 (defun sqrt (n)
     ((Y (lambda (f)
             (lambda (x)
