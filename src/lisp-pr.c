@@ -84,7 +84,7 @@ I ord(L x) {
 }
 
 L num(L n) {
-  return n;
+  return n;                     /* this could check for a valid number: return n == n ? n : ERROR_ARGUMENTS; */
 }
 
 I equ(L x, L y) {
@@ -344,14 +344,16 @@ L macro(L v, L x) {
   return box(MACR, ord(cons(v, x)));
 }
 
-/* return the car of a cons/closure/macro pair */
+/* return the car of a cons/closure/macro pair; CAR(p) provides direct memory access */
+#define CAR(p) cell[ord(p)]
 L car(L p) {
-  return (T(p) & ~(CONS^MACR)) == CONS ? cell[ord(p)] : ERROR_NOT_A_PAIR;
+  return (T(p) & ~(CONS^MACR)) == CONS ? CAR(p) : ERROR_NOT_A_PAIR;
 }
 
-/* return the cdr of a cons/closure/macro pair */
+/* return the cdr of a cons/closure/macro pair; CDR(p) provides direct memory access */
+#define CDR(p) cell[ord(p)+1]
 L cdr(L p) {
-  return (T(p) & ~(CONS^MACR)) == CONS ? cell[ord(p)+1] : ERROR_NOT_A_PAIR;
+  return (T(p) & ~(CONS^MACR)) == CONS ? CDR(p) : ERROR_NOT_A_PAIR;
 }
 
 /* look up a symbol in an environment, returns its value */
@@ -488,7 +490,7 @@ L list() {
       return pop();                             /* pop list and return it */
     }
     *p = cons(parse(), nil);                    /* add parsed expression to end of the list by replacing the last nil */
-    p = &cell[ord(*p)+1];                       /* p points to the cdr nil to replace it with the rest of the list */
+    p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
   }
 }
 
@@ -521,7 +523,7 @@ L evlis(L t, L e) {
   L *p = push(nil);                             /* push the new list to protect it from getting GC'ed */
   for (; T(t) == CONS; t = cdr(t)) {            /* for each expression in list t */
     *p = cons(eval(car(t), e), nil);            /* evaluate it and add it to the end of the list replacing last nil */
-    p = &cell[ord(*p)+1];                       /* p points to the cdr nil to replace it with the rest of the list */
+    p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
   }
   if (T(t) != NIL)                              /* if the list t does not end in nil */
     *p = eval(t, e);                            /* evaluate t to replace the last nil at the end of the new list */
@@ -675,14 +677,14 @@ L f_letrec(L t, L *e) {
   for (s = t; more(s); s = cdr(s))
     *e = pair(car(car(s)), nil, *e);
   for (s = *e; more(t); s = cdr(s), t = cdr(t))
-    cell[ord(car(s))+1] = eval(f_begin(cdr(car(t)), e), *e);
+    CDR(car(s)) = eval(f_begin(cdr(car(t)), e), *e);
   return T(t) == NIL ? nil : car(t);
 }
 
 L f_letreca(L t, L *e) {
   for (; more(t); t = cdr(t)) {
     *e = pair(car(car(t)), nil, *e);
-    cell[ord(car(*e))+1] = eval(f_begin(cdr(car(t)), e), *e);
+    CDR(car(*e)) = eval(f_begin(cdr(car(t)), e), *e);
   }
   return T(t) == NIL ? nil : car(t);
 }
@@ -691,17 +693,17 @@ L f_setq(L t, L *e) {
   L v = car(t), d = *e;
   while (T(d) == CONS && !equ(v, car(car(d))))
     d = cdr(d);
-  return T(d) == CONS ? cell[ord(car(d))+1] = eval(car(cdr(t)), *e) : ERROR_UNBOUND_SYMBOL;
+  return T(d) == CONS ? CDR(car(d)) = eval(car(cdr(t)), *e) : ERROR_UNBOUND_SYMBOL;
 }
 
 L f_setcar(L t, L *_) {
   L p = car(t);
-  return T(p) == CONS ? cell[ord(p)] = car(cdr(t)) : ERROR_NOT_A_PAIR;
+  return T(p) == CONS ? CAR(p) = car(cdr(t)) : ERROR_NOT_A_PAIR;
 }
 
 L f_setcdr(L t, L *_) {
   L p = car(t);
-  return T(p) == CONS ? cell[ord(p)+1] = car(cdr(t)) : ERROR_NOT_A_PAIR;
+  return T(p) == CONS ? CDR(p) = car(cdr(t)) : ERROR_NOT_A_PAIR;
 }
 
 L f_read(L t, L *_) {
