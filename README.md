@@ -123,7 +123,7 @@ Double precision floating point numbers, including `inf`, `-inf` and `nan`.  Num
 
 ### Symbols
 
-Lisp symbols consist of a sequence of non-space characters, excluding `(`, `)`, `'` and `"`.  When used in a Lisp expression, a symbol is looked-up for its value, like a variable typically refers to its value.  Symbols can be '-quoted like `'foo` to use symbols literally and to pass them to functions.
+Lisp symbols consist of a sequence of non-space characters, excluding `(`, `)` and quotes.  When used in a Lisp expression, a symbol is looked-up for its value, like a variable typically refers to its value.  Symbols can be '-quoted like `'foo` to use symbols literally and to pass them to functions.
 
 ### Booleans
 
@@ -192,7 +192,7 @@ returns `#t` (true) if `x` < `y`.  Otherwise, returns `()` (empty list means fal
 
     (eq? x y)
 
-returns `#t` (true) if values `x` and `y` are identical.  Otherwise, returns `()` (empty list means false).  Numbers, symbols and strings with the same value or contents are always identical, but non-empty lists may or may not be identical even when their values are the same.
+returns `#t` (true) if values `x` and `y` are identical.  Otherwise, returns `()` (empty list means false).  Numbers, symbols and strings of the same value are always identical, but non-empty lists may or may not be identical even when their values are the same.
 
     (not x)
 
@@ -220,13 +220,13 @@ if `x` is not `()` (meaning not false, i.e. true), then return `y` else return `
 
 ### Lambdas
 
-    (lambda <parameters> <expr>)
+    (lambda <variables> <expr>)
 
-returns an anonymous function "closure" with a list of parameters and an expression as its body.  For example, `(lambda (n) (* n n))` squares its argument.  The parameters of a lambda may be a single name (not placed in a list) to pass all arguments as a named list.  For example, `(lambda args args)` returns its arguments as a list.  The pair dot may be used to indicate the rest of the arguments.  For example, `(lambda (f x . args) (f . args))` applies a function argument`f` to the arguments `args`, while ignoring `x`.  The closure includes the lexical scope of the lambda, i.e. local names defined in the outer scope can be used in the body.  For example, `(lambda (f x) (lambda args (f x . args)))` is a function that takes function `f` and argument `x` to return a [curried function](https://en.wikipedia.org/wiki/Currying).
+returns an anonymous function "closure" with a list of variables and an expression as its body.  For example, `(lambda (n) (* n n))` squares its argument.  The variables of a lambda may be a single name (not placed in a list) to pass all arguments as a named list.  For example, `(lambda args args)` returns its arguments as a list.  The pair dot may be used to indicate the rest of the arguments.  For example, `(lambda (f x . args) (f . args))` applies a function argument`f` to the arguments `args`, while ignoring `x`.  The closure includes the lexical scope of the lambda, i.e. local names defined in the outer scope can be used in the body.  For example, `(lambda (f x) (lambda args (f x . args)))` is a function that takes function `f` and argument `x` to return a [curried function](https://en.wikipedia.org/wiki/Currying).
 
 ### Macros
 
-    (macro <parameters> <expr>)
+    (macro <variables> <expr>)
 
 a macro is like a function, except that it does not evaluate its arguments.  Macros typically construct Lisp code that is evaluated when the macro is expanded.  For example, the `defun` macro (see init.lisp) simplifies function definitions `(define defun (macro (f v x) (list 'define f (list 'lambda v x))))` such that `(defun fun (vars...) body)` expands to `(define fun (lambda (vars...) body))` using the convenient Lisp `list` function (see init.lisp) to construct the Lisp code list.
 
@@ -246,17 +246,17 @@ returns the current environment.  When executed in the REPL, returns the global 
 
 ### Locals
 
-Locals are declared with the following `let` special forms.  These forms differ slightly in syntax from other Lisp and Scheme implementations, with the aim to make `let` forms more intuitive to use (I spent a lot of time debugging my student's Scheme programs as many of them mistakingly forgot to use a list of pairs in the `let` forms, so it's time to get rid of that once and for all, but if you don't like it then change this Lisp implementation as you wish):
+Locals are declared with the following `let` special forms.  These forms differ slightly in syntax from other Lisp and Scheme implementations, with the aim to make let-forms more intuitive to use (I spent a lot of time debugging my student's Scheme programs as many of them mistakingly forgot to use a list of pairs in the let-forms, so it's time to get rid of that once and for all, but if you don't like it then change this Lisp implementation as you wish):
 
     (let (v1 x1) (v2 x2) ... (vk xk) y)
     (let* (v1 x1) (v2 x2) ... (vk xk) y)
 
-evaluates `y` with a local scope of bindings for symbols `v` bound to the values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list, but allow multiple `y` (you can use `begin` instead).
+evaluates `y` with a local scope of bindings for symbols `v` bound to the corresponding values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list, but allow multiple `y` (you can use `begin` instead).
 
     (letrec (v1 x1) (v2 x2) ... (vk xk) y)
     (letrec* (v1 x1) (v2 x2) ... (vk xk) y)
 
-evaluates `y` with a local scope of recursive bindings for symbols `v` bound to the values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list, but allow multiple `y` (you can use `begin` instead).
+evaluates `y` with a local scope of recursive bindings for symbols `v` bound to the corresponding values of `x`.  The star versions sequentially bind the symbols from the first to the last, the non-star simultaneously bind.  Note that other Lisp implementations may require placing all `(v x)` in a list, but allow multiple `y` (you can use `begin` instead).
 
 If an `x` is missing then `x` defaults to `()`.  If the `x` are multiple expressions, then all such expressions are evaluated and the value of the last expression is bound to the corresponding `v`.
 
@@ -264,12 +264,12 @@ If an `x` is missing then `x` defaults to `()`.  If the `x` are multiple express
 
     (setq <symbol> x)
 
-assigns a globally or locally-bound symbol a new value.
+destructively assigns a globally or locally-bound symbol a new value.
 
     (set-car! <pair> x)
     (set-cdr! <pair> y)
 
-assign a pair a new car or cdr value, respectively.
+destructively assigns a pair a new car or cdr value, respectively.
 
 ### Input and output
 
@@ -332,13 +332,13 @@ exits Lisp.
 
 Additional Lisp functions and macros are defined in [init.lisp](src/init.lisp).
 
-    (defun <symbol> <parameters> <expr>)
+    (defun <symbol> <variables> <expr>)
 
-defines a named function with parameters and a function body.  A shorthand for `(define <symbol> (lambda <parameters> <expr>))`.
+defines a named function with variables and a function body.  A shorthand for `(define <symbol> (lambda <variables> <expr>))`.
 
-    (defmacro <symbol> <parameters> <expr>)
+    (defmacro <symbol> <variables> <expr>)
 
-defines a named macro with parameters and a body.  A shorthand for `(define <symbol> (macro <parameters> <expr>))`.
+defines a named macro with variables and a body.  A shorthand for `(define <symbol> (macro <variables> <expr>))`.
 
     (null? x)
     (number? x)
