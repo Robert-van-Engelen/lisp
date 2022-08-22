@@ -56,10 +56,15 @@
         (if t
             (+ 1 (length (cdr t)))
             0)))
-(define append
+(define append1
     (lambda (s t)
         (if s
             (cons (car s) (append (cdr s) t))
+            t)))
+(define append
+    (lambda (t . args)
+        (if args
+            (append1 t (append . args))
             t)))
 (define nthcdr
     (lambda (t n)
