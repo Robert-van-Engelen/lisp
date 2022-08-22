@@ -188,7 +188,7 @@ returns the integer part of a number `n`.
 
     (< x y)
 
-returns `#t` (true) if `x` < `y`.  Otherwise, returns `()` (empty list means false).  The ordering among values of different types is as follows: () < number < primitive < symbol/string < pair/list < closure < macro.
+returns `#t` (true) if `x` < `y`.  Otherwise, returns `()` (empty list means false).  The ordering among values of different types is as follows: () < number < primitive < symbol < string < pair/list < closure < macro.
 
     (eq? x y)
 

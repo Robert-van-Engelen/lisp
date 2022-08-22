@@ -1,4 +1,4 @@
-/* lisp.hpp C++ with NaN boxing by Robert A. van Engelen 2022 BSD-3 license
+/* lisp.hpp C++ with mark-sweep GC and NaN boxing by Robert A. van Engelen 2022 BSD-3 license
    This C++17 version encapsulates the Lisp interpreter in a Lisp class */
 
 #ifndef LISP_HPP
@@ -568,8 +568,8 @@ L evlis(L t, L e) {
     *p = cons(eval(car(t), e), nil);            /* evaluate it and add it to the end of the list replacing last nil */
     p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
   }
-  if (T(t) != NIL)                              /* if the list t does not end in nil */
-    *p = eval(t, e);                            /* evaluate t to replace the last nil at the end of the new list */
+  if (T(t) == ATOM)                             /* if the list t ends in a symbol */
+    *p = assoc(t, e);                           /* evaluate t to replace the last nil at the end of the new list */
   return pop();                                 /* pop new list and return it */
 }
 
@@ -616,7 +616,7 @@ L f_mul(L t, L *_) {
 }
 
 L f_div(L t, L *_) {
-  L n = Not(cdr(t)) ? 1./car(t) : car(t);
+  L n = Not(cdr(t)) ? 1.0/car(t) : car(t);
   while (!Not(t = cdr(t)))
     n /= car(t);
   return num(n);
@@ -629,7 +629,7 @@ L f_int(L t, L *_) {
 
 L f_lt(L t, L *_) {
   L x = car(t), y = car(cdr(t));
-  return (((T(x) & ~(ATOM^STRG)) == ATOM && (T(y) & ~(ATOM^STRG)) == ATOM) ? strcmp(A+ord(x), A+ord(y)) < 0 :
+  return (T(x) == T(y) && (T(x) & ~(ATOM^STRG)) == ATOM ? strcmp(A+ord(x), A+ord(y)) < 0 :
       x == x && y == y ? x < y : /* x == x is false when x is NaN i.e. a tagged Lisp expression */
       *(int64_t*)&x < *(int64_t*)&y) ? tru : nil;
 }
@@ -851,7 +851,7 @@ inline static const struct {
   std::function<L(This&,L,L*)> f;
   uint8_t m;
 } prim[42] = {
-  {"type",     &This::f_type,    NORMAL},           /* (type x) => <type> value between 0 and 9 */
+  {"type",     &This::f_type,    NORMAL},           /* (type x) => <type> value between -1 and 7 */
   {"eval",     &This::f_ident,   NORMAL|TAILCALL},  /* (eval <quoted-expr>) => <value-of-expr> */
   {"quote",    &This::f_ident,   SPECIAL},          /* (quote <expr>) => <expr> -- protect <expr> from evaluation */
   {"cons",     &This::f_cons,    NORMAL},           /* (cons x y) => (x . y) -- construct a pair */
@@ -890,7 +890,7 @@ inline static const struct {
   {"load",     &This::f_load,    NORMAL},           /* (load <name>) -- loads file <name> (an atom or string name) */
   {"trace",    &This::f_trace,   SPECIAL},          /* (trace flag [<expr>]) -- flag 0=off, 1=on, 2=keypress */
   {"catch",    &This::f_catch,   SPECIAL},          /* (catch <expr>) => <value-of-expr> if no except. else (ERR . n) */
-  {"throw",    &This::f_throw,   NORMAL},           /* (throw n) -- raise exception error code n (integer > 0) */
+  {"throw",    &This::f_throw,   NORMAL},           /* (throw n) -- raise exception error code n (integer != 0) */
   {"quit",     &This::f_quit,    NORMAL},           /* (quit) -- bye! */
   {0}
 };
@@ -907,8 +907,8 @@ L eval(L x, L e) {
   if (!tr)
     return step(x, e);                          /* eval() -> step() tail call when not tracing */
   y = step(x, e);
-  printf("%u: ", N-sp); print(x);               /* <stack depth>: unevaluated expression */
-  printf(" => ");       print(y);               /* => value of the expression */
+  printf("%4u: ", N-sp); print(x);              /* <stack depth>: unevaluated expression */
+  printf(" => ");        print(y);              /* => value of the expression */
   if (tr > 1)                                   /* wait for ENTER key or other CTRL */
     while (getchar() >= ' ')
       continue;

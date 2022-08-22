@@ -1,4 +1,4 @@
-/* lisp.c with NaN boxing by Robert A. van Engelen 2022 BSD-3 license
+/* lisp.c with mark-sweep GC and NaN boxing by Robert A. van Engelen 2022 BSD-3 license
         - double precision floating point, symbols, strings, lists, proper closures, and macros
         - over 40 built-in Lisp primitives
         - lexically-scoped locals in lambda, let, let*, letrec, letrec*
@@ -367,11 +367,8 @@ FILE *input(const char *s) {
   return fin <= 9 && (in[fin] = fopen(s, "r")) ? in[fin++] : NULL;
 }
 
-/* tokenization buffer and the next character that we see */
-char buf[256], see = '\n';
-
-/* readline pointer into the last line and the prompt string */
-char *ptr = "", *line = NULL, ps[20];
+/* tokenization buffer, the next character we're looking at, the readline line, prompt and input file */
+char buf[256], see = '\n', *ptr = "", *line = NULL, ps[20];
 
 /* return the character we see, advance to the next character */
 char get() {
@@ -506,8 +503,8 @@ L evlis(L t, L e) {
     *p = cons(eval(car(t), e), nil);            /* evaluate it and add it to the end of the list replacing last nil */
     p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
   }
-  if (T(t) != NIL)                              /* if the list t does not end in nil */
-    *p = eval(t, e);                            /* evaluate t to replace the last nil at the end of the new list */
+  if (T(t) == ATOM)                             /* if the list t ends in a symbol */
+    *p = assoc(t, e);                           /* evaluate t to replace the last nil at the end of the new list */
   return pop();                                 /* pop new list and return it */
 }
 
@@ -554,7 +551,7 @@ L f_mul(L t, L *_) {
 }
 
 L f_div(L t, L *_) {
-  L n = not(cdr(t)) ? 1./car(t) : car(t);
+  L n = not(cdr(t)) ? 1.0/car(t) : car(t);
   while (!not(t = cdr(t)))
     n /= car(t);
   return num(n);
@@ -567,7 +564,7 @@ L f_int(L t, L *_) {
 
 L f_lt(L t, L *_) {
   L x = car(t), y = car(cdr(t));
-  return (((T(x) & ~(ATOM^STRG)) == ATOM && (T(y) & ~(ATOM^STRG)) == ATOM) ? strcmp(A+ord(x), A+ord(y)) < 0 :
+  return (T(x) == T(y) && (T(x) & ~(ATOM^STRG)) == ATOM ? strcmp(A+ord(x), A+ord(y)) < 0 :
       x == x && y == y ? x < y : /* x == x is false when x is NaN i.e. a tagged Lisp expression */
       *(int64_t*)&x < *(int64_t*)&y) ? tru : nil;
 }
@@ -780,7 +777,7 @@ struct {
   L (*f)(L, L*);
   enum { NORMAL, SPECIAL, TAILCALL } m;
 } prim[] = {
-  {"type",     f_type,    NORMAL},              /* (type x) => <type> value between 0 and 9 */
+  {"type",     f_type,    NORMAL},              /* (type x) => <type> value between -1 and 7 */
   {"eval",     f_ident,   NORMAL|TAILCALL},     /* (eval <quoted-expr>) => <value-of-expr> */
   {"quote",    f_ident,   SPECIAL},             /* (quote <expr>) => <expr> -- protect <expr> from evaluation */
   {"cons",     f_cons,    NORMAL},              /* (cons x y) => (x . y) -- construct a pair */
@@ -819,7 +816,7 @@ struct {
   {"load",     f_load,    NORMAL},              /* (load <name>) -- loads file <name> (an atom or string name) */
   {"trace",    f_trace,   SPECIAL},             /* (trace flag [<expr>]) -- flag 0=off, 1=on, 2=keypress */
   {"catch",    f_catch,   SPECIAL},             /* (catch <expr>) => <value-of-expr> if no exception else (ERR . n) */
-  {"throw",    f_throw,   NORMAL},              /* (throw n) -- raise exception error code n (integer > 0) */
+  {"throw",    f_throw,   NORMAL},              /* (throw n) -- raise exception error code n (integer != 0) */
   {"quit",     f_quit,    NORMAL},              /* (quit) -- bye! */
   {0}
 };
@@ -911,8 +908,8 @@ L eval(L x, L e) {
   if (!tr)
     return step(x, e);                          /* eval() -> step() tail call when not tracing */
   y = step(x, e);
-  printf("%u: ", N-sp); print(x);               /* <stack depth>: unevaluated expression */
-  printf(" => ");       print(y);               /* => value of the expression */
+  printf("%4u: ", N-sp); print(x);               /* <stack depth>: unevaluated expression */
+  printf(" => ");        print(y);               /* => value of the expression */
   if (tr > 1)                                   /* wait for ENTER key or other CTRL */
     while (getchar() >= ' ')
       continue;
@@ -970,6 +967,7 @@ void print(L x) {
 /* entry point with Lisp initialization, error handling and REPL */
 int main(int argc, char **argv) {
   int i;
+  printf("lisp");
   input(argc > 1 ? argv[1] : "init.lisp");      /* set input source to load when available */
   out = stdout;
   if (setjmp(jb))                               /* if something goes wrong before REPL, it is fatal */

@@ -8,6 +8,7 @@
 typedef Lisp<8192,2048> MySmallLisp;
 
 int main(int argc, char **argv) {
+  printf("lisp");
   MySmallLisp lisp;
   lisp.input(argc > 1 ? argv[1] : "init.lisp");
   using_history();
