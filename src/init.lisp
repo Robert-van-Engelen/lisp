@@ -59,7 +59,7 @@
 (define append1
     (lambda (s t)
         (if s
-            (cons (car s) (append (cdr s) t))
+            (cons (car s) (append1 (cdr s) t))
             t)))
 (define append
     (lambda (t . args)

@@ -873,6 +873,7 @@ L step(L x, L e) {
         }
         if (T(v) == CONS)                       /* error if insufficient actual arguments x are provided */
           ERROR_ARGUMENTS;
+        x = *y;
       }
       else if (T(x) == CONS)                    /* if more arguments x are provided then evaluate them all */
         x = evlis(x, e);
