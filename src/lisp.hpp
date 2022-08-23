@@ -756,6 +756,12 @@ L f_print(L t, L *_) {
   return nil;
 }
 
+L f_println(L t, L *e) {
+  f_print(t, e);
+  putc('\n', out);
+  return nil;
+}
+
 L f_write(L t, L *_) {
   L x;
   for (; T(t) != NIL; t = cdr(t)) {
@@ -842,7 +848,7 @@ inline static const struct {
   const char *s;
   std::function<L(This&,L,L*)> f;
   uint8_t m;
-} prim[42] = {
+} prim[43] = {
   {"type",     &This::f_type,    NORMAL},           /* (type x) => <type> value between -1 and 7 */
   {"eval",     &This::f_ident,   NORMAL|TAILCALL},  /* (eval <quoted-expr>) => <value-of-expr> */
   {"quote",    &This::f_ident,   SPECIAL},          /* (quote <expr>) => <expr> -- protect <expr> from evaluation */
@@ -877,6 +883,7 @@ inline static const struct {
   {"set-cdr!", &This::f_setcdr,  NORMAL},           /* (set-cdr! <pair> y) -- changes cdr of <pair> to y in memory */
   {"read",     &This::f_read,    NORMAL},           /* (read) => <value-of-input> */
   {"print",    &This::f_print,   NORMAL},           /* (print x1 x2 ... xk) => () -- prints the values x1 x2 ... xk */
+  {"println",  &This::f_println, NORMAL},           /* (println x1 x2 ... xk) => () -- prints with newline */
   {"write",    &This::f_write,   NORMAL},           /* (write x1 x2 ... xk) => () -- prints without quoting strings */
   {"string",   &This::f_string,  NORMAL},           /* (string x1 x2 ... xk) => <string> -- string of x1 x2 ... xk */
   {"load",     &This::f_load,    NORMAL},           /* (load <name>) -- loads file <name> (an atom or string name) */

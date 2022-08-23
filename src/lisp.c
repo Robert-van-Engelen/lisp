@@ -693,6 +693,12 @@ L f_print(L t, L *_) {
   return nil;
 }
 
+L f_println(L t, L *e) {
+  f_print(t, e);
+  putc('\n', out);
+  return nil;
+}
+
 L f_write(L t, L *_) {
   L x;
   for (; T(t) != NIL; t = cdr(t)) {
@@ -804,6 +810,7 @@ struct {
   {"set-cdr!", f_setcdr,  NORMAL},              /* (set-cdr! <pair> y) -- changes cdr of <pair> to y in memory */
   {"read",     f_read,    NORMAL},              /* (read) => <value-of-input> */
   {"print",    f_print,   NORMAL},              /* (print x1 x2 ... xk) => () -- prints the values x1 x2 ... xk */
+  {"println",  f_println, NORMAL},              /* (println x1 x2 ... xk) => () -- prints with newline */
   {"write",    f_write,   NORMAL},              /* (write x1 x2 ... xk) => () -- prints without quoting strings */
   {"string",   f_string,  NORMAL},              /* (string x1 x2 ... xk) => <string> -- string of x1 x2 ... xk */
   {"load",     f_load,    NORMAL},              /* (load <name>) -- loads file <name> (an atom or string name) */
