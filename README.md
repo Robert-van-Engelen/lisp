@@ -20,7 +20,7 @@ A quick glance at this small Lisp interpreter's features:
 - easily _customizable and extensible_ to add new special features
 - _integrates with C (and C++)_ code by calling C (C++) functions for Lisp primitives, for example to embed a Lisp interpreter
 
-I've documented this project's source code extensively to explain the inner workings of the Lisp interpreter, which should make it easy to use and to modify the code.  This small Lisp interpreter includes a tracing garbage collector to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection).  By contrast, a copying garbage collector requires double the memory, but has the advantage of being free of recursion (no call stack) and can be interrupted.  However, I've included a small and efficient [mark-sweep method with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) as an alternative method to eliminate recursive calls.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) removes unused atoms and strings from the heap.
+I've documented this project's source code extensively to explain the inner workings of the Lisp interpreter, which should make it easy to use and to modify the code.  This small Lisp interpreter includes a tracing garbage collector to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection).  By contrast, a [copying garbage collector](https://github.com/Robert-van-Engelen/lisp-cheney) requires double the heap memory, but has the advantage of being free of recursion (no call stack).  In this project I've included a small and efficient [mark-sweep method with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) as an alternative method to eliminate recursive calls.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) removes unused atoms and strings from the heap.
 
 ## Is it really Lisp?
 
@@ -58,7 +58,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     $ ./lisp
     ...
     defun
-    6352+1932>(load "nqueens.lisp")
+    6322+1929>(load "nqueens.lisp")
     ...
     (- - - - - - - @)
     (- - - @ - - - -)
@@ -70,8 +70,6 @@ Initialization imports `init.lisp` first, when located in the working directory.
     (- - - - @ - - -)
 
     done
-    ()
-    5660+1905>
 
 The prompt displays the number of free cons pair cells + free stack cells available.  The heap and stack are located in the same memory space.  Therefore, the second number is also indicative of the size of the heap space available to store new atoms and strings.
 
@@ -79,20 +77,19 @@ The prompt displays the number of free cons pair cells + free stack cells availa
 
 An execution trace displays the stack depth with each evaluation step:
 
-    6352+1932>(trace)
+    6322+1929>(trace)
     1
-    6352+1932>((curry + 1) 2 3)
-    9: curry => {1606}
-    9: + => <+>
-    9: 1 => 1
-    9: lambda => <lambda>
-    5: (curry + 1) => {1856}
-    6: 2 => 2
-    6: 3 => 3
-    5: f => <+>
-    6: x => 1
-    6: args => (2 3)
-    1: ((curry + 1) 2 3) => 6
+    6322+1929>((curry + 1) 2 3)
+       9: curry => {1636}
+       9: + => <+>
+       9: 1 => 1
+       9: lambda => <lambda>
+       5: (curry + 1) => {1886}
+       6: 2 => 2
+       6: 3 => 3
+       5: f => <+>
+       6: x => 1
+       1: ((curry + 1) 2 3) => 6
     6
 
 Note: the origin of a tail call may not be displayed.
