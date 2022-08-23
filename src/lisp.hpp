@@ -1,5 +1,5 @@
-/* lisp.hpp C++ with mark-sweep GC and NaN boxing by Robert A. van Engelen 2022 BSD-3 license
-   This C++17 version encapsulates the Lisp interpreter in a Lisp class */
+/* lisp.hpp Lisp in C++ with mark-sweep GC and NaN boxing by Robert A. van Engelen 2022 BSD-3 license
+   This C++17 version encapsulates the entire Lisp interpreter in a single Lisp class */
 
 #ifndef LISP_HPP
 #define LISP_HPP
@@ -110,7 +110,7 @@ static I ord(L x) {
 }
 
 static L num(L n) {
-  return n;                     /* this could check for a valid number: return n == n ? n : ERROR_ARGUMENTS; */
+  return n;                     /* this could check for a valid number: return n == n ? n : err(5); */
 }
 
 static I equ(L x, L y) {
@@ -121,21 +121,11 @@ static I equ(L x, L y) {
  |      ERROR HANDLING AND ERROR MESSAGES                                     |
 \*----------------------------------------------------------------------------*/
 
-#define ERROR_NOT_A_PAIR        err(1)
-#define ERROR_BREAK             err(2)
-#define ERROR_UNBOUND_SYMBOL    err(3)
-#define ERROR_CANNOT_APPLY      err(4)
-#define ERROR_ARGUMENTS         err(5)
-#define ERROR_STACK_OVER        err(6)
-#define ERROR_OUT_OF_MEMORY     err(7)
-#define ERROR_SYNTAX            err(8)
-
 public:
 
-/* raise an error code, jump to the most recent setjmp */
-static L err(int i) {
-  throw i;
-}
+/* report and throw an exception */
+#define ERR(n, ...) (fprintf(stderr, __VA_ARGS__), err(n))
+static L err(int n) { throw n; }
 
 /* return error string for error code or empty string */
 static const char *error(int i) {
@@ -182,7 +172,7 @@ char *A;
 /* Lisp constant expressions () (nil) and #t, and the global environment env */
 L nil, tru, env;
 
-/* garbage collector, returns number of free cells in the pool or raises ERROR_OUT_OF_MEMORY */
+/* garbage collector, returns number of free cells in the pool or raises err(7) */
 I gc() {
   I i;
   break_off();                                  /* do not interrupt GC if compiled with -DHAVE_SIGINT_H */
@@ -195,7 +185,7 @@ I gc() {
   i = sweep();                                  /* remove unused cons cell pairs from the pool */
   compact();                                    /* remove unused atoms and strings from the heap */
   break_on();                                   /* enable interrupt if compiled with -DHAVE_SIGINT_H */
-  return i ? i : ERROR_OUT_OF_MEMORY;
+  return i ? i : err(7);
 }
 
 /* push x on the stack to protect it from being recycled, returns pointer to cell pair (e.g. to update the value) */
@@ -204,7 +194,7 @@ L *push(L x) {
   if (hp > (sp-1) << 3 || ALWAYS_GC) {          /* if insufficient stack space is available, then GC */
     gc();                                       /* GC */
     if (hp > (sp-1) << 3)                       /* GC did not free up heap space to enlarge the stack */
-      ERROR_STACK_OVER;
+      err(6);
   }
   return &cell[sp];
 }
@@ -314,7 +304,7 @@ I alloc(I n) {
   if (hp+n > (sp-1) << 3 || ALWAYS_GC) {        /* if insufficient heap space is available, then GC */
     gc();                                       /* GC */
     if (hp+n > (sp-1) << 3)                     /* GC did not free up sufficient heap/stack space */
-      ERROR_STACK_OVER;
+      err(6);
     i = hp+R;                                   /* new atom/string is located at hp+R on the heap */
   }
   hp += n;                                      /* update heap pointer to the available space above the atom/string */
@@ -374,20 +364,20 @@ L macro(L v, L x) {
 /* return the car of a cons/closure/macro pair; CAR(p) provides direct memory access */
 #define CAR(p) cell[ord(p)]
 L car(L p) {
-  return (T(p) & ~(CONS^MACR)) == CONS ? CAR(p) : ERROR_NOT_A_PAIR;
+  return (T(p) & ~(CONS^MACR)) == CONS ? CAR(p) : err(1);
 }
 
 /* return the cdr of a cons/closure/macro pair; CDR(p) provides direct memory access */
 #define CDR(p) cell[ord(p)+1]
 L cdr(L p) {
-  return (T(p) & ~(CONS^MACR)) == CONS ? CDR(p) : ERROR_NOT_A_PAIR;
+  return (T(p) & ~(CONS^MACR)) == CONS ? CDR(p) : err(1);
 }
 
 /* look up a symbol in an environment, returns its value */
 L assoc(L v, L e) {
   while (T(e) == CONS && !equ(v, car(car(e))))
     e = cdr(e);
-  return T(e) == CONS ? cdr(car(e)) : ERROR_UNBOUND_SYMBOL;
+  return T(e) == CONS ? cdr(car(e)) : T(v) == ATOM ? ERR(3, "unbound %s ", A+ord(v)) : err(3);
 }
 
 /* Not(x) is nonzero if x is the Lisp () empty list */
@@ -510,7 +500,7 @@ char scan() {
     }
     while (i < sizeof(buf)-1 && !seeing('"') && !seeing('\n'));
     if (get() != '"')
-      ERROR_SYNTAX;
+      ERR(8, "missing \" ");
   }
   else if (seeing('(') || seeing(')') || seeing('\''))
     buf[i++] = get();                           /* ( ) ' are single-character tokens */
@@ -531,7 +521,7 @@ L list() {
     if (*buf == '.' && !buf[1]) {               /* parse list with dot pair ( <expr> ... <expr> . <expr> ) */
       *p = read();                              /* read expression to replace the last nil at the end of the list */
       if (scan() != ')')
-        ERROR_SYNTAX;
+        ERR(8, "expecing ) ");
       return pop();                             /* pop list and return it */
     }
     *p = cons(parse(), nil);                    /* add parsed expression to end of the list by replacing the last nil */
@@ -552,7 +542,9 @@ L parse() {
     return string(buf+1);
   if (sscanf(buf, "%lg%n", &x, &i) > 0 && !buf[i])
     return x;                                   /* return a number, including inf, -inf and nan */
-  return *buf != ')' ? atom(buf) : ERROR_SYNTAX;/* return an atom (a symbol) */
+  if (*buf != ')')
+    return atom(buf);                           /* return an atom (a symbol) */
+  return ERR(8, "unexpected ) ");
 }
 
 /*----------------------------------------------------------------------------*\
@@ -736,17 +728,17 @@ L f_setq(L t, L *e) {
   L v = car(t), d = *e;
   while (T(d) == CONS && !equ(v, car(car(d))))
     d = cdr(d);
-  return T(d) == CONS ? CDR(car(d)) = eval(car(cdr(t)), *e) : ERROR_UNBOUND_SYMBOL;
+  return T(d) == CONS ? CDR(car(d)) = eval(car(cdr(t)), *e) : T(v) == ATOM ? ERR(3, "unbound %s ", A+ord(v)) : err(3);
 }
 
 L f_setcar(L t, L *_) {
   L p = car(t);
-  return T(p) == CONS ? CAR(p) = car(cdr(t)) : ERROR_NOT_A_PAIR;
+  return T(p) == CONS ? CAR(p) = car(cdr(t)) : err(1);
 }
 
 L f_setcdr(L t, L *_) {
   L p = car(t);
-  return T(p) == CONS ? CDR(p) = car(cdr(t)) : ERROR_NOT_A_PAIR;
+  return T(p) == CONS ? CDR(p) = car(cdr(t)) : err(1);
 }
 
 L f_read(L t, L *_) {
@@ -807,7 +799,7 @@ L f_string(L t, L *_) {
 
 L f_load(L t, L *e) {
   L x = f_string(t, e);
-  return input(A+ord(x)) ? cons(atom("load"), cons(x, nil)) : ERROR_ARGUMENTS;
+  return input(A+ord(x)) ? cons(atom("load"), cons(x, nil)) : ERR(5, "cannot read %s ", A+ord(x));
 }
 
 L f_trace(L t, L *e) {
@@ -821,8 +813,8 @@ L f_catch(L t, L *e) {
   try {
     x = eval(car(t), *e);
   }
-  catch (int i) {
-    x = cons(atom("ERR"), i);
+  catch (int n) {
+    x = cons(atom("ERR"), n);
   }
   sp = savedsp;
   return x;
@@ -947,7 +939,7 @@ L step(L x, L e) {
       break;                                    /* else break to return value x */
     }
     if ((T(*f) & ~(CLOS^MACR)) != CLOS)         /* if f is not a closure or macro, then we cannot apply it */
-      ERROR_CANNOT_APPLY;
+      err(4);
     if (T(*f) == CLOS) {                        /* if f is a closure, then */
       *d = cdr(*f);                             /* construct an extended local environment d from f's static scope */
       if (T(*d) == NIL)                         /* if f's static scope is nil, then use global env as static scope */
@@ -966,7 +958,7 @@ L step(L x, L e) {
           *y = cdr(*y);
         }
         if (T(v) == CONS)                       /* error if insufficient actual arguments x are provided */
-          ERROR_ARGUMENTS;
+          err(4);
         x = *y;
       }
       else if (T(x) == CONS)                    /* if more arguments x are provided then evaluate them all */
@@ -987,7 +979,7 @@ L step(L x, L e) {
         x = cdr(x);
       }
       if (T(v) == CONS)                         /* error if insufficient actual arguments x are provided */
-        ERROR_ARGUMENTS;
+        err(4);
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
       x = *y = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *z to protect */
