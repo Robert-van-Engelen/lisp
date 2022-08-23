@@ -661,10 +661,10 @@ L f_letreca(L t, L *e) {
 }
 
 L f_setq(L t, L *e) {
-  L v = car(t), d = *e;
+  L x = eval(car(cdr(t)), *e), v = car(t), d = *e;
   while (T(d) == CONS && !equ(v, car(car(d))))
     d = cdr(d);
-  return T(d) == CONS ? CDR(car(d)) = eval(car(cdr(t)), *e) : T(v) == ATOM ? ERR(3, "unbound %s ", A+ord(v)) : err(3);
+  return T(d) == CONS ? CDR(car(d)) = x : T(v) == ATOM ? ERR(3, "unbound %s ", A+ord(v)) : err(3);
 }
 
 L f_setcar(L t, L *_) {
