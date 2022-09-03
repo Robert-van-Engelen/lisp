@@ -462,7 +462,7 @@ To allocate bytes on the heap to store atoms and strings, we just need to make s
       if (hp+n > (sp-1) << 3 || ALWAYS_GC) {        /* if insufficient heap space is available, then GC */
         gc();                                       /* GC */
         if (hp+n > (sp-1) << 3)                     /* GC did not free up sufficient heap/stack space */
-          ERROR_STACK_OVER;
+          err(6);;
         i = hp+R;                                   /* new atom/string is located at hp+R on the heap */
       }
       hp += n;                                      /* update heap pointer to the available space above the atom/string */
@@ -507,7 +507,7 @@ The second stage then sweeps the pool to keep the used cell pairs only.  The fre
 
 The garbage collector resets the bit vector (all cell pairs are initially considered unused).  The first stage marks all cell pairs reachable from the global environment `env` and all cell pairs reachable from the stack.  The second stage sweeps all unusued cell pairs.  A third stage compacts the heap by removing unused atoms and strings:
 
-    /* garbage collector, returns number of free cells in the pool or raises ERROR_OUT_OF_MEMORY */
+    /* garbage collector, returns number of free cells in the pool or raises err(7): out of memory */
     I gc() {
       I i;
       BREAK_OFF;                                    /* do not interrupt GC */
@@ -520,7 +520,7 @@ The garbage collector resets the bit vector (all cell pairs are initially consid
       i = sweep();                                  /* remove unused cons cell pairs from the pool */
       compact();                                    /* remove unused atoms and strings from the heap */
       BREAK_ON;                                     /* enable interrupt */
-      return i ? i : ERROR_OUT_OF_MEMORY;
+      return i ? i : err(7);
     }
 
 The compacting stage is performed as follows.
@@ -609,7 +609,7 @@ One small challenge arises when we recycle unused Lisp data.  Whenever we constr
       if (hp > (sp-1) << 3 || ALWAYS_GC) {          /* if insufficient stack space is available, then GC */
         gc();                                       /* GC */
         if (hp > (sp-1) << 3)                       /* GC did not free up heap space to enlarge the stack */
-          ERROR_STACK_OVER;
+          err(6);
       }
       return &cell[sp];
     }
