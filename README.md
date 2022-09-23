@@ -18,7 +18,7 @@ A quick glance at this small Lisp interpreter's features:
 - _compacting garbage collector_ to recycle unused atoms and strings
 - Lisp memory is a _single `cell[]` array_, no `malloc()` and `free()` calls
 - easily _customizable and extensible_ to add new special features
-- _integrates with C (and C++)_ code by calling C (C++) functions for Lisp primitives, for example to embed a Lisp interpreter
+- _integrates with C (and C++)_ code by calling C (C++) functions for Lisp primitives, for example to [embed a Lisp interpreter](#embedding)
 
 I've documented this project's source code extensively to explain the inner workings of the Lisp interpreter, which should make it easy to use and to modify the code.  This small Lisp interpreter includes a tracing garbage collector to recycle unused cons pair cells and unused atoms and strings.  There are different methods of garbage collection that can be used by a Lisp interpreter.  I chose the simple [mark-sweep method](#classic-mark-sweep-garbage-collection).  By contrast, a [copying garbage collector](https://github.com/Robert-van-Engelen/lisp-cheney) requires double the heap memory, but has the advantage of being free of recursion (no call stack).  In this project I've included a small and efficient [mark-sweep method with pointer reversal](#alternative-non-recursive-mark-sweep-garbage-collection-using-pointer-reversal) as an alternative method to eliminate recursive calls.  An advantage of mark-sweep is that Lisp data is never moved in memory and can be consistently referenced by other C/C++ code.  In addition to mark-sweep, a [compacting garbage collector](#compacting-garbage-collection-to-recycle-the-atomstring-heap) removes unused atoms and strings from the heap.
 
@@ -673,4 +673,112 @@ The following `dump` function displays the contents of the pool, e.g. when added
         else printf(FLOAT, cell[i]);
       }
       printf("\nenv=%u fp=%u hp=%u sp=%u\n", ord(env), fp, hp, sp);
+    }
+
+## Embedding
+
+Embedding a Lisp interpreter should be straightforward by renaming `main()` to `init()` to initialize the interpreter.  Remove the REPL loop from this function.
+
+To parse and execute Lisp code stored in a string, set `ptr` to this string then call `read`, `eval` and perhaps `print` to show the return value:
+
+    see = ' ';
+    ptr = "(my-lisp-function 123.4 'x)";
+    print(eval(*push(read()), env));
+
+Compiling with `HAVE_READLINE_H` is assumed to allow `ptr` to consume the given string.  Change the `get()` function to remove the `readline` dependency and keep this part:
+
+    if (see != '\n')
+      if (!(see = *ptr++))
+        see = '\n';
+
+To clear the stack and garbage collect the heap:
+
+    unwind(N); 
+    gc()
+
+To expose C functions in Lisp, define wrapper functions and register them in the `prim[]` array.  Pointers can be stored as Lisp integers.  Arbitrary binary data can be stored in strings.
+
+Some examples to get started:
+
+    /* some kind of state data of a device */
+    struct Data {
+      enum { RED, GREEN } state;
+      float temperature;
+    };
+
+    /* two data items (initialized somewhere else) */
+    struct Data data[2];
+
+    /* convert the data[2] items to a Lisp string managed by GC */
+    f_data2lisp(L t, L *_) {
+      I size = sizeof(data);
+      I index = alloc(size);
+      memcpy(A + index, data, size);
+      return box(STRG, index);
+    }
+
+    /* convert Lisp string data back to data[2] */
+    f_lisp2data(L t, L *_) {
+      I size = sizeof(data);
+      if (T(t) != NIL) {
+        t = car(t);
+        if (T(t) == STRG)
+          memcpy(data, A + ord(car(t)), size);
+      }
+      return nil;
+    }
+
+    /* set colors of data[2] as Lisp data, e.g. set-colors(data, 'RED, 'GREEN) */
+    f_set_color(L t, L* _) {
+      if (T(t) != NIL) {
+        L arg1 = car(t);
+        L arg2 = car(cdr(t));
+        L arg3 = car(cdr(cdr(t)));
+        if (T(arg1) == STRG && T(arg2) == ATOM && T(arg3) == ATOM) {
+          struct Data *ptr = (struct Data*)(A + ord(arg1));
+          if (strcmp(A + ord(arg2), "RED") == 0)
+            ptr[0].state = RED;
+          else
+            ptr[0].state = GREEN;
+          if (strcmp(A + ord(arg3), "RED") == 0)
+            ptr[1].state = RED;
+          else
+            ptr[1].state = GREEN;
+        }
+      }
+      return nil;
+    }
+
+    /* set temperatures of data[2] as Lisp data, e.g. set-temperatures(data, 45, 51.7) */
+    f_set_temperatures(L t, L* _) {
+      if (T(t) != NIL) {
+        L arg1 = car(t);
+        L arg2 = car(cdr(t));
+        L arg3 = car(cdr(cdr(t)));
+        if (T(arg1) == STRG) {
+          struct Data *ptr = (struct Data*)(A + ord(arg1));
+          ptr[0].temperature = (float)num(arg2); /* note that num() can throw an error, as suggested */
+          ptr[1].temperature = (float)num(arg3);
+        }
+      }
+      return nil;
+    }
+
+    /* table of Lisp primitives, each has a name s, a function pointer f, and an evaluation mode m */
+    struct {
+      ...
+    } prim[] = {
+      ...
+      {"data-to-lisp",     f_data2lisp,        NORMAL},
+      {"lisp-to-data",     f_lisp2data,        NORMAL},
+      {"set-colors",       f_set_colors,       NORMAL},
+      {"set-temperatures", f_set_temperatures, NORMAL},
+      ...
+      {0}
+    };
+
+The `num()` function does not throw an error in the default implementation, when the Lisp argument is non-numeric.  To throw an error change `num()` as follows:
+
+    L num(L n) {
+      return n == n ? n : err(5);
     }
