@@ -685,7 +685,7 @@ To parse and execute Lisp code stored in a string, set `ptr` to this string then
     ptr = "(+ 1 2 3)";
     print(eval(*push(read()), env));
 
-Compiling with `HAVE_READLINE_H` is assumed to allow `ptr` to consume the given string.  Change the `get()` function to remove the `readline` dependency and keep this part:
+Compiling with `HAVE_READLINE_H` is assumed to allow `ptr` to consume the given string.  If `readline` is not used, then change the `get()` function to remove the `readline` dependency and keep this part:
 
     if (see != '\n')
       if (!(see = *ptr++))
