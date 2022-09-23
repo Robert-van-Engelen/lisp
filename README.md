@@ -682,7 +682,7 @@ Embedding a Lisp interpreter should be straightforward by renaming `main()` to `
 To parse and execute Lisp code stored in a string, set `ptr` to this string then call `read`, `eval` and perhaps `print` to show the return value:
 
     see = ' ';
-    ptr = "(my-lisp-function 123.4 'x)";
+    ptr = "(+ 1 2 3)";
     print(eval(*push(read()), env));
 
 Compiling with `HAVE_READLINE_H` is assumed to allow `ptr` to consume the given string.  Change the `get()` function to remove the `readline` dependency and keep this part:
