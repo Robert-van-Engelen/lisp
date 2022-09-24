@@ -717,17 +717,17 @@ Some examples to get started:
       return box(STRG, index);
     }
 
-    /* convert Lisp string data back to data[2] */
+    /* convert Lisp string data back to data[2], note: no check if Lisp string has correct size */
     L f_lisp2data(L t, L *_) {
       I size = sizeof(data);
-      L x = car(t);
-      if (T(x) == STRG)
-        memcpy(data, A + ord(x), size);
+      L arg = car(t);
+      if (T(arg) == STRG)
+        memcpy(data, A + ord(arg), size);
       return nil;
     }
 
     /* set colors of data[2] as Lisp data, e.g. (set-colors data 'RED 'GREEN) */
-    L f_set_color(L t, L* _) {
+    L f_set_color(L t, L *_) {
       L arg1 = car(t);
       L arg2 = car(cdr(t));
       L arg3 = car(cdr(cdr(t)));
@@ -746,7 +746,7 @@ Some examples to get started:
     }
 
     /* set temperatures of data[2] as Lisp data, e.g. (set-temperatures data 45 51.7) */
-    L f_set_temperatures(L t, L* _) {
+    L f_set_temperatures(L t, L *_) {
       L arg1 = car(t);
       L arg2 = car(cdr(t));
       L arg3 = car(cdr(cdr(t)));
@@ -758,6 +758,17 @@ Some examples to get started:
       return nil;
     }
 
+    /* get temperature of data[2] as Lisp data, e.g. (get-temperatures data) */
+    L f_get_temperatures(L t, L *e) {
+      L arg = car(t);
+      L res = nil;
+      if (T(arg) == STRG) {
+        struct Data *ptr = (struct Data*)(A + ord(arg));
+        res = cons(ptr[0].temperature, cons(ptr[1].temperature, nil)); 
+      }
+      return res;
+    }
+
     /* table of Lisp primitives, each has a name s, a function pointer f, and an evaluation mode m */
     struct {
       ...
@@ -767,6 +778,7 @@ Some examples to get started:
       {"lisp-to-data",     f_lisp2data,        NORMAL},
       {"set-colors",       f_set_colors,       NORMAL},
       {"set-temperatures", f_set_temperatures, NORMAL},
+      {"get-temperatures", f_get_temperatures, NORMAL},
       ...
       {0}
     };
