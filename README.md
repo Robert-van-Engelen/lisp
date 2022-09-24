@@ -717,7 +717,7 @@ Some examples to get started:
       return box(STRG, index);
     }
 
-    /* convert Lisp string data back to data[2], note: no check if Lisp string has correct size */
+    /* convert Lisp string data back to data[2] */
     L f_lisp2data(L t, L *_) {
       I size = sizeof(data);
       L arg = car(t);
@@ -726,7 +726,7 @@ Some examples to get started:
       return nil;
     }
 
-    /* set colors of data[2] as Lisp data, e.g. (set-colors data 'RED 'GREEN) */
+    /* set colors of data[2] stored as Lisp string, e.g. (set-colors data 'RED 'GREEN) */
     L f_set_color(L t, L *_) {
       L arg1 = car(t);
       L arg2 = car(cdr(t));
@@ -745,7 +745,7 @@ Some examples to get started:
       return nil;
     }
 
-    /* set temperatures of data[2] as Lisp data, e.g. (set-temperatures data 45 51.7) */
+    /* set temperatures of data[2] stored as Lisp string, e.g. (set-temperatures data 45 51.7) */
     L f_set_temperatures(L t, L *_) {
       L arg1 = car(t);
       L arg2 = car(cdr(t));
@@ -758,7 +758,7 @@ Some examples to get started:
       return nil;
     }
 
-    /* get temperature of data[2] as Lisp data, e.g. (get-temperatures data) */
+    /* get temperature of data[2] stored as Lisp string, e.g. (get-temperatures data) */
     L f_get_temperatures(L t, L *e) {
       L arg = car(t);
       L res = nil;
