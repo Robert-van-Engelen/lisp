@@ -720,46 +720,40 @@ Some examples to get started:
     /* convert Lisp string data back to data[2] */
     f_lisp2data(L t, L *_) {
       I size = sizeof(data);
-      if (T(t) != NIL) {
-        t = car(t);
-        if (T(t) == STRG)
-          memcpy(data, A + ord(car(t)), size);
-      }
+      L x = car(t);
+      if (T(x) == STRG)
+        memcpy(data, A + ord(x), size);
       return nil;
     }
 
-    /* set colors of data[2] as Lisp data, e.g. set-colors(data, 'RED, 'GREEN) */
+    /* set colors of data[2] as Lisp data, e.g. (set-colors data 'RED 'GREEN) */
     f_set_color(L t, L* _) {
-      if (T(t) != NIL) {
-        L arg1 = car(t);
-        L arg2 = car(cdr(t));
-        L arg3 = car(cdr(cdr(t)));
-        if (T(arg1) == STRG && T(arg2) == ATOM && T(arg3) == ATOM) {
-          struct Data *ptr = (struct Data*)(A + ord(arg1));
-          if (strcmp(A + ord(arg2), "RED") == 0)
-            ptr[0].state = RED;
-          else
-            ptr[0].state = GREEN;
-          if (strcmp(A + ord(arg3), "RED") == 0)
-            ptr[1].state = RED;
-          else
-            ptr[1].state = GREEN;
-        }
+      L arg1 = car(t);
+      L arg2 = car(cdr(t));
+      L arg3 = car(cdr(cdr(t)));
+      if (T(arg1) == STRG && T(arg2) == ATOM && T(arg3) == ATOM) {
+        struct Data *ptr = (struct Data*)(A + ord(arg1));
+        if (strcmp(A + ord(arg2), "RED") == 0)
+          ptr[0].state = RED;
+        else
+          ptr[0].state = GREEN;
+        if (strcmp(A + ord(arg3), "RED") == 0)
+          ptr[1].state = RED;
+        else
+          ptr[1].state = GREEN;
       }
       return nil;
     }
 
-    /* set temperatures of data[2] as Lisp data, e.g. set-temperatures(data, 45, 51.7) */
+    /* set temperatures of data[2] as Lisp data, e.g. (set-temperatures data 45 51.7) */
     f_set_temperatures(L t, L* _) {
-      if (T(t) != NIL) {
-        L arg1 = car(t);
-        L arg2 = car(cdr(t));
-        L arg3 = car(cdr(cdr(t)));
-        if (T(arg1) == STRG) {
-          struct Data *ptr = (struct Data*)(A + ord(arg1));
-          ptr[0].temperature = (float)num(arg2); /* note that num() can throw an error, as suggested */
-          ptr[1].temperature = (float)num(arg3);
-        }
+      L arg1 = car(t);
+      L arg2 = car(cdr(t));
+      L arg3 = car(cdr(cdr(t)));
+      if (T(arg1) == STRG) {
+        struct Data *ptr = (struct Data*)(A + ord(arg1));
+        ptr[0].temperature = (float)num(arg2); /* note that num() can throw an error, as suggested below */
+        ptr[1].temperature = (float)num(arg3);
       }
       return nil;
     }
