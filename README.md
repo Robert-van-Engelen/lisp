@@ -776,7 +776,7 @@ Some examples to get started:
       ...
       {"data-to-lisp",     f_data2lisp,        NORMAL},
       {"lisp-to-data",     f_lisp2data,        NORMAL},
-      {"set-colors",       f_set_colors,       NORMAL},
+      {"set-colors",       f_set_color,        NORMAL},
       {"set-temperatures", f_set_temperatures, NORMAL},
       {"get-temperatures", f_get_temperatures, NORMAL},
       ...
