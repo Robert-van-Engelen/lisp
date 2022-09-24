@@ -710,7 +710,7 @@ Some examples to get started:
     struct Data data[2];
 
     /* convert the data[2] items to a Lisp string managed by GC */
-    f_data2lisp(L t, L *_) {
+    L f_data2lisp(L t, L *_) {
       I size = sizeof(data);
       I index = alloc(size);
       memcpy(A + index, data, size);
@@ -718,7 +718,7 @@ Some examples to get started:
     }
 
     /* convert Lisp string data back to data[2] */
-    f_lisp2data(L t, L *_) {
+    L f_lisp2data(L t, L *_) {
       I size = sizeof(data);
       L x = car(t);
       if (T(x) == STRG)
@@ -727,7 +727,7 @@ Some examples to get started:
     }
 
     /* set colors of data[2] as Lisp data, e.g. (set-colors data 'RED 'GREEN) */
-    f_set_color(L t, L* _) {
+    L f_set_color(L t, L* _) {
       L arg1 = car(t);
       L arg2 = car(cdr(t));
       L arg3 = car(cdr(cdr(t)));
@@ -746,7 +746,7 @@ Some examples to get started:
     }
 
     /* set temperatures of data[2] as Lisp data, e.g. (set-temperatures data 45 51.7) */
-    f_set_temperatures(L t, L* _) {
+    L f_set_temperatures(L t, L* _) {
       L arg1 = car(t);
       L arg2 = car(cdr(t));
       L arg3 = car(cdr(cdr(t)));
