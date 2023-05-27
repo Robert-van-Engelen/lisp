@@ -603,7 +603,7 @@ L f_while(L t, L *e) {
 L f_cond(L t, L *e) {
   while (T(t) != NIL && not(eval(car(car(t)), *e)))
     t = cdr(t);
-  return f_begin(cdr(car(t)), e);
+  return T(t) != NIL ? f_begin(cdr(car(t)), e) : nil;
 }
 
 L f_if(L t, L *e) {

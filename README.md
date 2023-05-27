@@ -556,7 +556,7 @@ To compact the heap, we construct a linked list of cells that refer to the same 
       }
     }
 
-Since the pool and stack share the same `cell[]` array, the linked lists jut contain `cell[]` indices to the `ATOM` and `STRG` cells to update during compaction.  The runtime cost is in the order of the number of `ATOM` and `STRG` cells.  Memory overhead of this method is limited to an index per atom/string on the heap of width `R`.  This space is only used during compaction.  It could serve a dual purpose such as a length field of the atom/string e.g. to store binary data that doesn't end with a \0.  This would require marking the length with a bit so that the length can serve as a sentinel instead of `N` to restore the length after compaction.
+Since the pool and stack share the same `cell[]` array, the linked lists just contain `cell[]` indices to the `ATOM` and `STRG` cells to update during compaction.  The runtime cost is in the order of the number of `ATOM` and `STRG` cells.  Memory overhead of this method is limited to an index per atom/string on the heap of width `R`.  This space is only used during compaction.  It could serve a dual purpose such as a length field of the atom/string e.g. to store binary data that doesn't end with a \0.  This would require marking the length with a bit so that the length can serve as a sentinel instead of `N` to restore the length after compaction.
 
 ### Alternative: non-recursive mark-sweep garbage collection using pointer reversal
 
