@@ -461,7 +461,7 @@ char scan() {
 
 /* return the Lisp expression parsed and read from input */
 L parse();
-L read() {
+L readlisp() {
   scan();
   return parse();
 }
@@ -473,7 +473,7 @@ L list() {
     if (scan() == ')')
       return pop();
     if (*buf == '.' && !buf[1]) {               /* parse list with dot pair ( <expr> ... <expr> . <expr> ) */
-      *p = read();                              /* read expression to replace the last nil at the end of the list */
+      *p = readlisp();                          /* read expression to replace the last nil at the end of the list */
       if (scan() != ')')
         ERR(8, "expecing ) ");
       return pop();                             /* pop list and return it */
@@ -489,7 +489,7 @@ L parse() {
   if (*buf == '(')                              /* if token is ( then parse a list */
     return list();
   if (*buf == '\'') {                           /* if token is ' then parse an expression x to return (quote x) */
-    x = cons(read(), nil);
+    x = cons(readlisp(), nil);
     return cons(atom("quote"), x);
   }
   if (*buf == '"')                              /* if token is a string, then return a new string */
@@ -701,7 +701,7 @@ L f_read(L t, L *_) {
   L x; char c = see;
   see = ' ';
   *ps = 0;
-  x = read();
+  x = readlisp();
   see = c;
   return x;
 }
@@ -1013,6 +1013,6 @@ int main(int argc, char **argv) {
     i = gc();
     snprintf(ps, sizeof(ps), "%u+%u>", i, sp-hp/8);
     out = stdout;
-    print(eval(*push(read()), env));
+    print(eval(*push(readlisp()), env));
   }
 }
