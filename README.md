@@ -679,7 +679,7 @@ The following `dump` function displays the contents of the pool, e.g. when added
 
 Embedding a Lisp interpreter should be straightforward by renaming `main()` to `init()` to initialize the interpreter.  Remove the REPL loop from this function.
 
-To parse and execute Lisp code stored in a string, set `ptr` to this string then call `read`, `eval` and perhaps `print` to show the return value:
+To parse and execute Lisp code stored in a string, set `ptr` to this string and set `see` to a space, then call `readlisp`, `eval` and perhaps `print` to show the return value:
 
     see = ' ';
     ptr = "(+ 1 2 3)";
@@ -698,7 +698,7 @@ To clear the stack and garbage collect the heap:
 
 To expose C functions in Lisp, define wrapper functions and register them in the `prim[]` array.  Pointers can be stored as Lisp integers.  Arbitrary binary data can be stored in strings.
 
-Some examples to get started:
+Some examples to get you started:
 
     /* some kind of state data of a device */
     struct Data {
