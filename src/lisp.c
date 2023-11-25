@@ -986,7 +986,7 @@ int main(int argc, char **argv) {
   if (i) {
     while (fin)                                 /* close all open files */
       fclose(in[--fin]);
-    printf("ERR %d %s", i, errors[i > 0 && i <= ERRORS ? i : 0]);
+    printf("ERR %d: %s", i, errors[i > 0 && i <= ERRORS ? i : 0]);
   }
   while (1) {                                   /* read-evel-print loop */
     putchar('\n');

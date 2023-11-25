@@ -1,5 +1,5 @@
-/* lisp-pr.c Lisp with pointer reversal mark-sweep GC and NaN boxing by Robert A. van Engelen 2022 BSD-3 license
-        - double precision floating point, symbols, strings, lists, proper closures, and macros
+/* lisp-pr-single.c Lisp with pointer reversal mark-sweep GC and NaN boxing by Robert A. van Engelen 2022 BSD-3 license
+        - single precision floating point, symbols, strings, lists, proper closures, and macros
         - over 40 built-in Lisp primitives
         - lexically-scoped locals in lambda, let, let*, letrec, letrec*
         - proper tail-recursion, including tail calls through begin, cond, if, let, let*, letrec, letrec*
@@ -13,7 +13,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>             /* int64_t, uint64_t, uint32_t (or we can use e.g. unsigned long long instead) */
+#include <stdint.h>             /* uint32_t */
 #include <string.h>
 #include <setjmp.h>
 
@@ -33,8 +33,8 @@
 void using_history() { }
 #endif
 
-/* floating point output format */
-#define FLOAT "%.17lg"
+/* single precision floating point output format */
+#define FLOAT "%.7g"
 
 /* DEBUG: always run GC when allocating cells and atoms/strings on the heap */
 #ifdef DEBUG
@@ -49,7 +49,7 @@ void using_history() { }
 
 /* we only need two types to implement a Lisp interpreter:
         I      unsigned integer (32 bit unsigned)
-        L      Lisp expression (double with NaN boxing)
+        L      Lisp expression (single precision float with NaN boxing)
    I variables and function parameters are named as follows:
         i,j,k  any unsigned integer, e.g. a NaN-boxed ordinal value
         t      a NaN-boxing tag
@@ -62,26 +62,26 @@ void using_history() { }
         e,d    environment, a list of pairs, e.g. created with (define v x)
         v      the name of a variable (an atom) or a list of variables */
 #define I uint32_t
-#define L double
+#define L float
 
 /* T(x) returns the tag bits of a NaN-boxed Lisp expression x */
-#define T(x) (*(uint64_t*)&x >> 48)
+#define T(x) (*(I*)&x >> 20)
 
-/* primitive, atom, string, cons, closure, macro and nil tags for NaN boxing (reserve 0x7ff8 for nan) */
-I PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe, MACR = 0x7fff, NIL = 0xffff;
+/* primitive, atom, string, cons, closure, macro and nil tags for NaN boxing (reserve 0x7f8 for nan) */
+I PRIM = 0x7f9, ATOM = 0x7fa, STRG = 0x7fb, CONS = 0x7fc, CLOS = 0x7fe, MACR = 0x7ff, NIL = 0xfff;
 
-/* box(t,i): returns a new NaN-boxed double with tag t and ordinal i
-   ord(x):   returns the ordinal of the NaN-boxed double x
+/* box(t,i): returns a new NaN-boxed float with tag t and 20 bits ordinal i
+   ord(x):   returns the 20 bits ordinal of the NaN-boxed float x
    num(n):   convert or check number n (does nothing, e.g. could check for NaN)
    equ(x,y): returns nonzero if x equals y */
 L box(I t, I i) {
   L x;
-  *(uint64_t*)&x = (uint64_t)t << 48 | i;
+  *(I*)&x = (I)t << 20 | i;
   return x;
 }
 
 I ord(L x) {
-  return *(uint64_t*)&x;        /* the return value is narrowed to 32 bit unsigned integer to remove the tag */
+  return *(I*)&x & 0xfffff;     /* the 20 bits ordinal return value is masked to remove the tag */
 }
 
 L num(L n) {
@@ -89,7 +89,7 @@ L num(L n) {
 }
 
 I equ(L x, L y) {
-  return *(uint64_t*)&x == *(uint64_t*)&y;
+  return *(I*)&x == *(I*)&y;
 }
 
 /*----------------------------------------------------------------------------*\
@@ -120,20 +120,20 @@ const char *errors[ERRORS+1] = {
  |      MEMORY MANAGEMENT AND RECYCLING                                       |
 \*----------------------------------------------------------------------------*/
 
-/* number of cells to allocate for the cons pair pool, increase P as desired */
+/* number of cells to allocate for the cons pair pool, increase P as desired, but P+S <= 262144 */
 #define P 8192
 
-/* number of cells to allocate for the shared stack and heap, increase S as desired */
+/* number of cells to allocate for the shared stack and heap, increase S as desired, but P+S <= 262144 */
 #define S 2048
 
-/* total number of cells to allocate = P+S */
+/* total number of cells to allocate = P+S, should not exceed 262144 = 2^20/4 */
 #define N (P+S)
 
 /* base address of the atom/string heap */
 #define A (char*)cell
 
 /* heap address start offset, the heap starts at address A+H immediately above the pool */
-#define H (8*P)
+#define H (4*P)
 
 /* size of the cell reference field of an atom/string on the heap, used by the compacting garbage collector */
 #define R sizeof(I)
@@ -494,7 +494,7 @@ L parse() {
   }
   if (*buf == '"')                              /* if token is a string, then return a new string */
     return string(buf+1);
-  if (sscanf(buf, "%lg%n", &x, &i) > 0 && !buf[i])
+  if (sscanf(buf, "%g%n", &x, &i) > 0 && !buf[i])
     return x;                                   /* return a number, including inf, -inf and nan */
   if (*buf != ')')
     return atom(buf);                           /* return an atom (a symbol) */
@@ -572,14 +572,14 @@ L f_div(L t, L *_) {
 
 L f_int(L t, L *_) {
   L n = car(t);
-  return n < 1e16 && n > -1e16 ? (int64_t)n : n;
+  return n < 1e6 && n > -1e6 ? (I)n : n;
 }
 
 L f_lt(L t, L *_) {
   L x = car(t), y = car(cdr(t));
   return (T(x) == T(y) && (T(x) & ~(ATOM^STRG)) == ATOM ? strcmp(A+ord(x), A+ord(y)) < 0 :
       x == x && y == y ? x < y : /* x == x is false when x is NaN i.e. a tagged Lisp expression */
-      *(int64_t*)&x < *(int64_t*)&y) ? tru : nil;
+      *(I*)&x < *(I*)&y) ? tru : nil;
 }
 
 L f_eq(L t, L *_) {

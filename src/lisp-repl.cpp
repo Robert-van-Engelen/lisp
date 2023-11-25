@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     }
     catch (int i) {
       lisp.closein();
-      printf("ERR %d %s", i, lisp.error(i));
+      printf("ERR %d: %s", i, lisp.error(i));
     }
     catch (MySmallLisp::QUIT) {
       printf("Bye!\n");
