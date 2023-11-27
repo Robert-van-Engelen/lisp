@@ -120,20 +120,20 @@ const char *errors[ERRORS+1] = {
  |      MEMORY MANAGEMENT AND RECYCLING                                       |
 \*----------------------------------------------------------------------------*/
 
-/* number of cells to allocate for the cons pair pool, increase P as desired, but P+S <= 262144 */
+/* number of cells to allocate for the cons pair pool, increase P as desired, but P+S < 262144 */
 #define P 8192
 
-/* number of cells to allocate for the shared stack and heap, increase S as desired, but P+S <= 262144 */
+/* number of cells to allocate for the shared stack and heap, increase S as desired, but P+S < 262144 */
 #define S 2048
 
-/* total number of cells to allocate = P+S, should not exceed 262144 = 2^20/4 */
+/* total number of cells to allocate = P+S, should not exceed 262143 = 2^20/4-1 */
 #define N (P+S)
 
 /* base address of the atom/string heap */
 #define A (char*)cell
 
 /* heap address start offset, the heap starts at address A+H immediately above the pool */
-#define H (4*P)
+#define H (sizeof(L)*P)
 
 /* size of the cell reference field of an atom/string on the heap, used by the compacting garbage collector */
 #define R sizeof(I)
