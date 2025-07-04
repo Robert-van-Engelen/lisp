@@ -643,7 +643,7 @@ L f_or(L t, L *e) {
 }
 
 L f_and(L t, L *e) {
-  L x = nil;
+  L x = tru;
   while (T(t) != NIL && !Not(x = eval(car(t), *e)))
     t = cdr(t);
   return x;

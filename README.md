@@ -201,7 +201,7 @@ returns the value of the first `x` that is not `()`.  Otherwise, returns `()` (e
 
     (and x1 x2 ... xk)
 
-returns the value of the last `x` if all `x` are not `()`.  Otherwise, returns `()` (empty list means false).  Only evaluates the `x` until the first is `()`, i.e. the `and` is conditional.
+returns the value of the last `x` if all `x` are not `()`.  Otherwise, returns `()` (empty list means false).  Only evaluates the `x` until the first is `()`, i.e. the `and` is conditional.  When no arguments are specified `(and)` returns `#t`.
 
 Note that `(or (and <test> <then>) <else>)` forms an if-then-else.  However, like Lua for example, this is not correct when the `<test>` evluates to true but `<then>` is nil (the `()` empty list.)  In that case `<else>` is evaluated.
 
