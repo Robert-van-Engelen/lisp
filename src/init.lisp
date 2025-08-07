@@ -6,11 +6,9 @@
 (define atom? (lambda (x) (not (pair? x))))
 (define list?
     (lambda (x)
-        (or
-            (not x)
-            (if (pair? x)
-                (list? (cdr x))
-                ()))))
+        (if (pair? x)
+            (list? (cdr x))
+            (not x))))
 (define equal?
     (lambda (x y)
         (or
@@ -24,7 +22,6 @@
 (define <= (lambda (x y) (not (< y x))))
 (define >= (lambda (x y) (not (< x y))))
 (define = (lambda (x y) (eq? (- x y) 0)))
-(define list (lambda args args))
 
 (define abs
     (lambda (n)
@@ -106,12 +103,13 @@
             args)))
 (define max
     (lambda args
-        (foldl (lambda (x y)
-            (if (< x y)
-                y
-                x))
-        -inf
-        args)))
+        (foldl
+            (lambda (x y)
+                (if (< x y)
+                    y
+                    x))
+            -inf
+            args)))
 (define filter
     (lambda (f t)
         (if t

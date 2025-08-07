@@ -10,13 +10,13 @@ A quick glance at this small Lisp interpreter's features:
 - proper _tail recursion_, including tail calls through `begin`, `cond`, `if`, `let`, `let*`, `letrec`, `letrec*`
 - _exceptions_ and error handling with safe return to REPL after an error
 - _break with CTRL-C_ to return to the REPL (optional)
-- REPL with GNU _readline_ for convenient Lisp input (optional)
+- REPL with GNU _readline_ for convenient Lisp command line input (optional)
 - _load Lisp_ source code files
 - _execution tracing_ to display Lisp evaluation steps
 - _mark-sweep garbage collector_ to recycle unused cons pair cells
 - plus an alternative _non-recursive garbage collector_ (mark-sweep using pointer reversal)
 - _compacting garbage collector_ to recycle unused atoms and strings
-- Lisp memory is a _single `cell[]` array_, no `malloc()` and `free()` calls
+- Lisp memory is a _single `cell[]` array_, no `malloc()` and `free()` calls (except each `readline` requires a `free`)
 - easily _customizable and extensible_ to add new special features
 - _integrates with C (and C++)_ code by calling C (C++) functions for Lisp primitives, for example to [embed a Lisp interpreter](#embedding)
 
@@ -58,7 +58,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     $ ./lisp
     ...
     defun
-    6322+1929>(load "nqueens.lisp")
+    6332+1929>(load "nqueens.lisp")
     ...
     (- - - - - - - @)
     (- - - @ - - - -)
@@ -68,18 +68,22 @@ Initialization imports `init.lisp` first, when located in the working directory.
     (- @ - - - - - -)
     (- - - - - - @ -)
     (- - - - @ - - -)
-
+    ()
     done
+    5612+1903>(quit)
+    $
 
 The prompt displays the number of free cons pair cells + free stack cells available.  The heap and stack are located in the same memory space.  Therefore, the second number is also indicative of the size of the heap space available to store new atoms and strings.
+
+To quit Lisp, type `(quit)`.
 
 ## Execution tracing
 
 An execution trace displays the stack depth with each evaluation step:
 
-    6322+1929>(trace)
+    6332+1929>(trace)
     1
-    6322+1929>((curry + 1) 2 3)
+    6332+1929>((curry + 1) 2 3)
        9: curry => {1636}
        9: + => <+>
        9: 1 => 1
@@ -160,6 +164,10 @@ evaluates a quoted expression and returns its value.  For example, `(eval '(+ 1 
 
 constructs a pair `(x . y)` for expressions `x` and `y`.  Lists are formed by chaining sevaral cons pairs, with the empty list `()` as the last `y`.  For example, `(cons 1 (cons 2 ()))` is the same as `'(1 2)`.
 
+    (list x1 x2 ... xn)
+
+returns the list of evaluated `x1`, `x2`, ... `xn`, same as `(cons x1 (cons x2 (cons ... (cons xn nil))))`.
+
     (car <pair>)
 
 returns the first part `x` of a pair `(x . y)` or list.
@@ -226,6 +234,10 @@ returns an anonymous function "closure" with a list of variables and an expressi
     (macro <variables> <expr>)
 
 a macro is like a function, except that it does not evaluate its arguments.  Macros typically construct Lisp code that is evaluated when the macro is expanded.  For example, the `defun` macro (see init.lisp) simplifies function definitions `(define defun (macro (f v x) (list 'define f (list 'lambda v x))))` such that `(defun fun (vars...) body)` expands to `(define fun (lambda (vars...) body))` using the convenient Lisp `list` function (see init.lisp) to construct the Lisp code list.
+
+    `<expr>
+
+backquotes `<expr>`, which quotes `<expr>`, but evaluates all `,`-expressions before quoting.  For example, the macro example above can also be written as `(define defun (macro (f v x) `(define ,f (lambda ,v ,x))))` without using `list` to construct lists and "down quotes" to replace variables with their values i.e. unquotes.
 
 ### Globals
 
@@ -350,10 +362,6 @@ returns `#t` if `x` is of a specific type or structure.
     (equal? x y)
 
 returns `#t` if values `x` and `y` are identical or structurally equal.
-
-    (list x1 x2 ... xn)
-
-returns the list of evaluated `x1`, `x2`, ... `xn`.
 
     (seq n1 n2)
     (range n1 n2 [n3])

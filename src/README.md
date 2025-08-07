@@ -8,7 +8,7 @@
 
 # Compiling C
 
-    $ cc -o lisp lisp.c -O2 -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
+    $ cc -o lisp lisp-pr.c -O2 -DHAVE_SIGNAL_H -DHAVE_READLINE_H -lreadline
 
 Without CTRL-C to break and without the [GNU readline](https://en.wikipedia.org/wiki/GNU_Readline) library:
 
