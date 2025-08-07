@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
   int i = GETSIGINT(lisp);      // when compiling with -DHAVE_SIGINT_H we must set this handler!
   if (i) {
     lisp.closein();
-    printf("ERR %d %s", i, lisp.error(i));
+    printf("\e[35;1m%s\e[m", lisp.error(i));
   }
   while (1) {
     putchar('\n');
@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     }
     catch (int i) {
       lisp.closein();
-      printf("ERR %d: %s", i, lisp.error(i));
+      printf("\e[31;1mERR %d: %s\e[m", i, lisp.error(i));
     }
     catch (MySmallLisp::QUIT) {
       printf("Bye!\n");

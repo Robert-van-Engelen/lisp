@@ -74,23 +74,10 @@ enum { PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe
    ord(x):   returns the ordinal of the NaN-boxed double x
    num(n):   convert or check number n (does nothing, e.g. could check for NaN)
    equ(x,y): returns nonzero if x equals y */
-L box(I t, I i) {
-  L x;
-  *(uint64_t*)&x = (uint64_t)t << 48 | i;
-  return x;
-}
-
-I ord(L x) {
-  return *(uint64_t*)&x;        /* the return value is narrowed to 32 bit unsigned integer to remove the tag */
-}
-
-L num(L n) {
-  return n;                     /* this could check for a valid number: return n == n ? n : err(5); */
-}
-
-I equ(L x, L y) {
-  return *(uint64_t*)&x == *(uint64_t*)&y;
-}
+L box(I t, I i) { L x; *(uint64_t*)&x = (uint64_t)t << 48 | i; return x; }
+I ord(L x)      { return *(uint64_t*)&x; }              /* narrow return to 32 bit to remove the tag */
+L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
+I equ(L x, L y) { return *(uint64_t*)&x == *(uint64_t*)&y; }
 
 /*----------------------------------------------------------------------------*\
  |      ERROR HANDLING AND ERROR MESSAGES                                     |
@@ -482,6 +469,12 @@ L tick() {
   p = push(cons(atom("list"), nil));
   while (scan() != ')') {
     p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
+    if (*buf == '.' && !buf[1]) {               /* tick list with dot pair ( <expr> ... <expr> . <expr> ) */
+      *p = readlisp();                          /* read expression to replace the last nil at the end of the list */
+      if (scan() != ')')
+        ERR(8, "expecing ) ");
+      break;
+    }
     *p = cons(tick(), nil);                     /* add ticked expression to end of the list by replacing the last nil */
   }
   return pop();                                 /* return (list <expr> ... <expr>) */
@@ -935,8 +928,9 @@ L eval(L x, L e) {
   if (!tr)
     return step(x, e);                          /* eval() -> step() tail call when not tracing */
   y = step(x, e);
-  printf("%4u: ", N-sp); print(x);              /* <stack depth>: unevaluated expression */
-  printf(" => ");        print(y);              /* => value of the expression */
+  printf("\e[32m%4u: \e[33m", N-sp); print(x);  /* <stack depth>: unevaluated expression */
+  printf("\e[36m => \e[33m");        print(y);  /* => value of the expression */
+  printf("\e[m\t");
   if (tr > 1)                                   /* wait for ENTER key or other CTRL */
     while (getchar() >= ' ')
       continue;
@@ -1005,7 +999,7 @@ int main(int argc, char **argv) {
   if (i) {
     while (fin)                                 /* close all open files */
       fclose(in[--fin]);
-    printf("ERR %d: %s", i, errors[i > 0 && i <= ERRORS ? i : 0]);
+    printf("\e[31;1mERR %d: %s\e[m", i, errors[i > 0 && i <= ERRORS ? i : 0]);
   }
   while (1) {                                   /* read-evel-print loop */
     putchar('\n');
