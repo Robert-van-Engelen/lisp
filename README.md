@@ -171,7 +171,7 @@ constructs a pair `(x . y)` for expressions `x` and `y`.  Lists are formed by ch
 
     (list x1 x2 ... xn)
 
-returns the list of evaluated `x1`, `x2`, ... `xn`, same as `(cons x1 (cons x2 (cons ... (cons xn nil))))`.
+returns the list of evaluated `x1`, `x2`, ... `xn`, same as `(cons x1 (cons x2 (cons ... (cons xn ()))))`.
 
     (car <pair>)
 

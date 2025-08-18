@@ -77,7 +77,7 @@ Lisp<P,S>() {
         I      unsigned integer (32 bit unsigned)
         L      Lisp expression (double with NaN boxing)
    I variables and function parameters are named as follows:
-        i,j,k  any unsigned integer, e.g. a NaN-boxed ordinal value
+        i,j,k  any unsigned integer, e.g. a NaN-boxed ordinal value or index
         t      a NaN-boxing tag
    L variables and function parameters are named as follows:
         x,y    any Lisp expression
@@ -372,9 +372,9 @@ I Not(L x) {
   return T(x) == NIL;
 }
 
-/* more(t) is nonzero if list t has more than one item, i.e. is not empty or a singleton list */
+/* more(t) is nonzero if list t has more than one item */
 I more(L t) {
-  return T(t) != NIL && (t = cdr(t), T(t) != NIL);
+  return !Not(t) && !Not(cdr(t));
 }
 
 /*----------------------------------------------------------------------------*\
@@ -688,8 +688,14 @@ L f_macro(L t, L *_) {
 }
 
 L f_define(L t, L *e) {
-  env = pair(car(t), eval(car(cdr(t)), *e), env);
-  return car(t);
+  L x = eval(car(cdr(t)), *e), v = car(t), d = *e;
+  while (T(d) == CONS && !equ(v, car(car(d))))
+    d = cdr(d);
+  if (T(d) == CONS)
+    CDR(car(d)) = x;
+  else
+    env = pair(v, x, env);
+  return v;
 }
 
 L f_assoc(L t, L *_) {
@@ -949,13 +955,10 @@ L step(L x, L e) {
       *z = e;
       x = *y = prim[i].f(*this, x, z);          /* call the primitive with arguments x, put return value back in x */
       e = *z;                                   /* the new environment e is d to evaluate x, put in *z to protect */
-      if (prim[i].m & TAILCALL)                 /* if the primitive is TAILCALL mode, */
-        continue;                               /* ... then continue evaluating x */
-      break;                                    /* else break to return value x */
+      if (!(prim[i].m & TAILCALL))              /* if the primitive is TAILCALL mode, then continnue */
+        break;                                  /* else break to return value x */
     }
-    if ((T(*f) & ~(CLOS^MACR)) != CLOS)         /* if f is not a closure or macro, then we cannot apply it */
-      err(4);
-    if (T(*f) == CLOS) {                        /* if f is a closure, then */
+    else if (T(*f) == CLOS) {                   /* if f is a closure, then */
       *d = cdr(*f);                             /* construct an extended local environment d from f's static scope */
       if (T(*d) == NIL)                         /* if f's static scope is nil, then use global env as static scope */
         *d = env;
@@ -965,7 +968,7 @@ L step(L x, L e) {
         v = cdr(v);
         x = cdr(x);
       }
-      if (T(v) == CONS) {                       /* condinue binding v if x is after a dot (... . x) by evaluating x */
+      if (T(v) == CONS) {                       /* continue binding v if x is after a dot (... . x) by evaluating x */
         *y = eval(x, e);                        /* evaluate x and save its value y to protect it from getting GC'ed */
         while (T(v) == CONS && T(*y) == CONS) {
           *d = pair(car(v), car(*y), *d);       /* add new binding to the front of d */
@@ -973,7 +976,7 @@ L step(L x, L e) {
           *y = cdr(*y);
         }
         if (T(v) == CONS)                       /* error if insufficient actual arguments x are provided */
-          err(4);
+          err(5);
         x = *y;
       }
       else if (T(x) == CONS)                    /* if more arguments x are provided then evaluate them all */
@@ -985,7 +988,7 @@ L step(L x, L e) {
       x = *y = cdr(car(*f));                    /* tail recursion optimization: evaluate the body x of closure f next */
       e = *z = *d;                              /* the new environment e is d to evaluate x, put in *z to protect */
     }
-    else {                                      /* else if f is a macro, then */
+    else if (T(*f) == MACR) {                   /* else if f is a macro, then */
       *d = env;                                 /* construct an extended local environment d from global env */
       v = car(*f);                              /* get the parameters v of macro f */
       while (T(v) == CONS && T(x) == CONS) {    /* bind parameters v to arguments x to extend the local scope d */
@@ -994,11 +997,13 @@ L step(L x, L e) {
         x = cdr(x);
       }
       if (T(v) == CONS)                         /* error if insufficient actual arguments x are provided */
-        err(4);
+        err(5);
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
       x = *y = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *z to protect */
     }
+    else
+      err(4);                                   /* if f is not a closure or macro, then we cannot apply it */
   }
   unwind(k);                                    /* unwind the stack to allow GC to collect unused temporaries */
   return x;                                     /* return x evaluated */
