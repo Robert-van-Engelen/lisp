@@ -58,7 +58,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     $ ./lisp
     ...
     defun
-    6332+1929>(load "nqueens.lisp")
+    6198+1922>(load "nqueens.lisp")
     ...
     (- - - - - - - @)
     (- - - @ - - - -)
@@ -70,7 +70,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     (- - - - @ - - -)
     ()
     done
-    5612+1903>(quit)
+    5478+1897>(quit)
     $
 
 The prompt displays the number of free cons pair cells + free stack cells available.  The heap and stack are located in the same memory space.  Therefore, the second number is also indicative of the size of the heap space available to store new atoms and strings.
@@ -81,22 +81,22 @@ To quit Lisp, type `(quit)`.
 
 An execution trace displays the stack depth with each evaluation step:
 
-    6332+1929>(trace)
+    6198+1922>(trace)
     1
-    6332+1929>((curry + 1) 2 3)
-       9: curry => {1636}
-       9: + => <+>
-       9: 1 => 1
-       9: lambda => <lambda>
-       5: (curry + 1) => {1886}
-       6: 2 => 2
-       6: 3 => 3
-       5: f => <+>
-       6: x => 1
-       1: ((curry + 1) 2 3) => 6
+    6198+1922>((curry + 1) 2 3)
+       9: curry => {1760}	
+       9: + => <+>	
+       9: 1 => 1	
+       9: (curry + 1) => (lambda args (f x . args))	
+       9: lambda => <lambda>	
+       5: (lambda args (f x . args)) => {2010}	
+       6: 2 => 2	
+       6: 3 => 3	
+       5: ((curry + 1) 2 3) => (f x . args)	
+       5: f => <+>	
+       6: x => 1	
+       1: (f x . args) => 6	
     6
-
-Note: the origin of a tail call may not be displayed.
 
 ## Compilation
 

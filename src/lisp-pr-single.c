@@ -850,14 +850,27 @@ struct {
  |      EVAL                                                                  |
 \*----------------------------------------------------------------------------*/
 
-/* step-wise evaluate x in environment e, returns value of x, tail-call optimized */
-L step(L x, L e) {
-  L *f, v, *d, *y, *z; I k = sp;                /* save sp to unwind the stack back to sp afterwards */
+/* when tracing is enabled, then display the evaluation of w => x */
+void trace(L w, L x) {
+  printf("\e[32m%4u: \e[33m", N-sp); print(w);  /* <stack depth>: unevaluated expression */
+  printf("\e[36m => \e[33m");        print(x);  /* => value of the expression */
+  printf("\e[m\t");
+  if (tr > 1)                                   /* wait for ENTER key or other CTRL */
+    while (getchar() >= ' ')
+      continue;
+  else
+    putchar('\n');
+}
+
+/* evaluate x in environment e, returns value of x, tail-call optimized */
+L eval(L x, L e) {
+  L *f, v, w, *d, *y, *z; I k = sp;             /* save sp to unwind the stack back to sp afterwards */
   f = push(nil);                                /* protect closure f from getting GC'ed */
   d = push(nil);                                /* protect new bindings d from getting GC'ed */
   y = push(nil);                                /* protect alias y of new x from getting GC'ed */
   z = push(nil);                                /* protect alias z of new e from getting GC'ed */
   while (1) {
+    w = x;                                      /* save x to trace w => x when tracing is enabled */
     if (T(x) == ATOM) {                         /* if x is an atom, then return its associated value */
       x = assoc(x, e);
       break;
@@ -922,26 +935,13 @@ L step(L x, L e) {
     }
     else
       err(4);                                   /* if f is not a closure or macro, then we cannot apply it */
+    if (tr)                                     /* if tracing is enabled then display evaluation step w => x */
+      trace(w, x);
   }
   unwind(k);                                    /* unwind the stack to allow GC to collect unused temporaries */
+  if (tr)                                       /* if tracing is enabled then display evaluation step w => x */
+    trace(w, x);
   return x;                                     /* return x evaluated */
-}
-
-/* trace the evaluation of x in environment e, returns its value */
-L eval(L x, L e) {
-  L y;
-  if (!tr)
-    return step(x, e);                          /* eval() -> step() tail call when not tracing */
-  y = step(x, e);
-  printf("\e[32m%4u: \e[33m", N-sp); print(x);  /* <stack depth>: unevaluated expression */
-  printf("\e[36m => \e[33m");        print(y);  /* => value of the expression */
-  printf("\e[m\t");
-  if (tr > 1)                                   /* wait for ENTER key or other CTRL */
-    while (getchar() >= ' ')
-      continue;
-  else
-    putchar('\n');
-  return y;
 }
 
 /*----------------------------------------------------------------------------*\
