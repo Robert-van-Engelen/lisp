@@ -116,6 +116,10 @@ A C++ REPL with [lisp.hpp](src/lisp.hpp) header-only Lisp interpreter:
 
     cd tests && ./runtests.sh
 
+## Optional additions
+
+See [EXTRAS.md](EXTRAS.md) with snippets of C/C++ code to extend the Lisp interpreter.
+
 ## Lisp language features
 
 ### Numbers
