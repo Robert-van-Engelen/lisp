@@ -103,7 +103,7 @@ const char *errors[ERRORS+1] = {
 #define P 8192
 
 /* number of cells to allocate for the shared stack and heap, increase S as desired, but P+S < 262144 */
-#define S 2048
+#define S 8192
 
 /* total number of cells to allocate = P+S, should not exceed 262143 = 2^20/4-1 */
 #define N (P+S)
@@ -114,8 +114,8 @@ const char *errors[ERRORS+1] = {
 /* heap address start offset, the heap starts at address A+H immediately above the pool */
 #define H (sizeof(L)*P)
 
-/* size of the cell reference field of an atom/string on the heap, used by the compacting garbage collector */
-#define R sizeof(I)
+/* size Z of the link and size fields at the base address of each atom/string on the heap */
+#define Z sizeof(I)
 
 /* array of Lisp expressions, shared by the pool, heap and stack */
 L cell[N];
@@ -178,15 +178,15 @@ I sweep() {
 
 /* add i'th cell to the linked list of cells that refer to the same atom/string */
 void link(I i) {
-  I k = *(I*)(A+ord(cell[i])-R);                /* atom/string reference k is the k'th cell that uses the atom/string */
-  *(I*)(A+ord(cell[i])-R) = i;                  /* add k'th cell to the linked list of atom/string cells */
+  I k = *(I*)(A+ord(cell[i])-Z-Z);              /* atom/string link k is the k'th cell that uses the atom/string */
+  *(I*)(A+ord(cell[i])-Z-Z) = i;                /* add k'th cell to the linked list of atom/string cells */
   cell[i] = box(T(cell[i]), k);                 /* by updating the i'th cell atom/string ordinal to k */
 }
 
 /* compacting garbage collector recycles heap by removing unused atoms/strings and by moving used ones */
 void compact() {
   I i, j;
-  for (i = H; i < hp; i += strlen(A+R+i)+R+1)   /* reset all atom/string reference fields to N (end of linked list) */
+  for (i = H; i < hp; i += *(I*)(A+Z+i)+Z+Z)      /* reset all atom/string link fields to N (end of linked list) */
     *(I*)(A+i) = N;
   for (i = 0; i < P; ++i)                       /* add each used atom/string cell in the pool to its linked list */
     if (used[i/64] & 1 << i/2%32 && (T(cell[i]) & ~(ATOM^STRG)) == ATOM)
@@ -195,15 +195,15 @@ void compact() {
     if ((T(cell[i]) & ~(ATOM^STRG)) == ATOM)
       link(i);
   for (i = H, j = hp, hp = H; i < j; ) {        /* for each atom/string on the heap */
-    I k = *(I*)(A+i), n = strlen(A+R+i)+R+1;
+    I k = *(I*)(A+i), n = *(I*)(A+Z+i)+Z+Z;
     if (k < N) {                                /* if its linked list is not empty, then we need to keep it */
-      while (k < N) {                           /* traverse linked list to update atom/string cells to hp+R */
+      while (k < N) {                           /* traverse linked list to update atom/string cells to hp+Z+Z */
         I l = ord(cell[k]);
-        cell[k] = box(T(cell[k]), hp+R);        /* hp+R is the new location of the atom/string after compaction */
+        cell[k] = box(T(cell[k]), hp+Z+Z);      /* hp+Z+Z is the new location of the atom/string after compaction */
         k = l;
       }
       if (hp < i)
-        memmove(A+hp, A+i, n);                  /* move atom/string further down the heap to hp+R to compact the heap */
+        memmove(A+hp, A+i, n);                  /* move atom/string further down the heap to hp to compact the heap */
       hp += n;                                  /* update heap pointer to the available space above the atom/string */
     }
     i += n;
@@ -253,15 +253,16 @@ void unwind(I i) {
 
 /* allocate n+1 bytes on the heap, returns heap offset of the allocated space */
 I alloc(I n) {
-  I i = hp+R;                                   /* free atom/heap is located at hp+R */
-  n += R+1;                                     /* n+R+1 is the space we need to reserve */
-  if (hp+n > (sp-1) << 3 || ALWAYS_GC) {        /* if insufficient heap space is available, then GC */
+  I i;
+  if (hp+Z+Z+n+1 > (sp-1) << 3 || ALWAYS_GC) {  /* if insufficient heap space is available, then GC */
     gc();                                       /* GC */
-    if (hp+n > (sp-1) << 3)                     /* GC did not free up sufficient heap/stack space */
+    if (hp+Z+Z+n+1 > (sp-1) << 3)               /* GC did not free up sufficient heap space */
       err(6);
-    i = hp+R;                                   /* new atom/string is located at hp+R on the heap */
   }
-  hp += n;                                      /* update heap pointer to the available space above the atom/string */
+  i = hp+Z+Z;
+  *(I*)(A+i-Z) = n+1;                           /* store the size n+1 in the size field */
+  *(A+i+n) = '\0';                              /* end the allocated block with a terminating zero byte for safety */
+  hp = i+n+1;                                   /* update heap pointer to the available space above the atom/string */
   return i;
 }
 
@@ -272,9 +273,9 @@ I copy(const char *s) {
 
 /* interning of atom names (symbols), returns a unique NaN-boxed ATOM */
 L atom(const char *s) {
-  I i = H+R;
+  I i = H+Z+Z;
   while (i < hp && strcmp(A+i, s))              /* search the heap for matching atom (or string) s */
-    i += strlen(A+i)+R+1;
+    i += *(I*)(A+i-Z)+Z+Z;
   if (i >= hp)                                  /* if not found, then copy s to the heap for the new atom */
     i = copy(s);
   return box(ATOM, i);                          /* return unique NaN-boxed ATOM */
@@ -747,9 +748,7 @@ L f_string(L t, L *_) {
     else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(buf, sizeof(buf), FLOAT, x);
   }
-  push(t);
   i = j = alloc(i);
-  pop();
   for (s = t; T(s) != NIL; s = cdr(s)) {
     L x = car(s);
     if ((T(x) & ~(ATOM^STRG)) == ATOM)
@@ -882,7 +881,7 @@ L eval(L x, L e) {
     if (T(*f) == PRIM) {                        /* if f is a primitive, then apply it to the actual arguments x */
       I i = ord(*f);
       if (!(prim[i].m & SPECIAL))               /* if the primitive is NORMAL mode, */
-        x = evlis(x, e);                        /* ... then evaluate actual arguments x */
+        x = *y = evlis(x, e);                   /* ... then evaluate actual arguments x */
       *z = e;
       x = *y = prim[i].f(x, z);                 /* call the primitive with arguments x, put return value back in x */
       e = *z;                                   /* the new environment e is d to evaluate x, put in *z to protect */
@@ -1010,7 +1009,7 @@ int main(int argc, char **argv) {
     putchar('\n');
     unwind(N);
     i = gc();
-    snprintf(ps, sizeof(ps), "%u+%u>", i, sp-hp/8);
+    snprintf(ps, sizeof(ps), "%u+%u>", i, sp-hp/4);
     out = stdout;
     print(eval(*push(readlisp()), env));
   }

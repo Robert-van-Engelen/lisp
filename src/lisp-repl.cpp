@@ -5,7 +5,7 @@
 #include "lisp.hpp"
 
 // a small Lisp interpreter with 8192 cells pool and 2048 cells stack/heap
-typedef Lisp<8192,2048> MySmallLisp;
+typedef Lisp<8192,8192> MySmallLisp;
 
 int main(int argc, char **argv) {
   printf("lisp");
