@@ -436,10 +436,10 @@ and an offset `H` such that byte-addressable address `A+H` points to the bottom 
     /* heap address start offset, the heap starts at address A+H immediately above the pool */
     #define H (8*P)
 
-Each atom and string stored in the heap has a special reference field located in front of it.  A reference is an unsigned integer.  We will use this reference field to construct a linked list pointing to `cell[]` with `ATOM` and `STRG` values that point to the same atom or string.  If the linked list is empty, then the atom or string is not used and can be removed from the heap.  The size of this reference field is `R`:
+Each atom and string stored in the heap has a link field and a size field located in front of its data.  The link field is only used during heap compacting.  During compacting, the link fields points to the linked list of corresponding `cell[]` with `ATOM` and `STRG` values whose ordinals that point to the data on the heap must be updated.  The size field contains the allocated size of the atom or string plus one for a terminating zero byte in the data.  The size of these fields is `Z`:
 
-    /* size of the cell reference field of an atom/string on the heap, used by the compacting garbage collector */
-    #define R sizeof(I)
+    /* size Z of the link and size fields at the base address of each atom/string on the heap */
+    #define Z sizeof(I)
 
 The free cells in the pool form a linked list `fp` with the list ending as zero.  The atom and string heap pointer `hp` points to available heap space above the allocated atoms and strings, initially `hp = H`.  The stack grows down from the top of `cell[]` towards the heap, starting with stack pointer `sp = N`.  We also define a `tr` tracing flag:
 
