@@ -195,8 +195,6 @@ struct { ... } prim[] = { ...
   {"utf8.pos", f_utf8_pos, NORMAL},             /* (utf8.pos x y [k]) find string x in y from char position k onwards */
 ```
 
-It should be straightforward to add a case-insensitive version of this function that uses `strcasestr` instead of `strstr`.
-
 ### utf8.sub
 
     (utf8.sub <str> <pos> <len>)
