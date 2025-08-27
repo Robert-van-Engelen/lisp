@@ -177,7 +177,7 @@ I sweep() {
 }
 
 /* add i'th cell to the linked list of cells that refer to the same atom/string */
-void link(I i) {
+void chain(I i) {
   I k = *(I*)(A+ord(cell[i])-Z-Z);              /* atom/string link k is the k'th cell that uses the atom/string */
   *(I*)(A+ord(cell[i])-Z-Z) = i;                /* add k'th cell to the linked list of atom/string cells */
   cell[i] = box(T(cell[i]), k);                 /* by updating the i'th cell atom/string ordinal to k */
@@ -190,10 +190,10 @@ void compact() {
     *(I*)(A+i) = N;
   for (i = 0; i < P; ++i)                       /* add each used atom/string cell in the pool to its linked list */
     if (used[i/64] & 1 << i/2%32 && (T(cell[i]) & ~(ATOM^STRG)) == ATOM)
-      link(i);
+      chain(i);
   for (i = sp; i < N; ++i)                      /* add each used atom/string cell on the stack to its linked list */
     if ((T(cell[i]) & ~(ATOM^STRG)) == ATOM)
-      link(i);
+      chain(i);
   for (i = H, j = hp, hp = H; i < j; ) {        /* for each atom/string on the heap */
     I k = *(I*)(A+i), n = *(I*)(A+Z+i)+Z+Z;
     if (k < N) {                                /* if its linked list is not empty, then we need to keep it */
@@ -759,7 +759,6 @@ L f_string(L t, L *_) {
     else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(A+i, sizeof(buf), FLOAT, x);
   }
-  *(A+i) = 0;
   return box(STRG, j);
 }
 
