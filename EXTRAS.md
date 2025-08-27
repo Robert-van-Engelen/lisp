@@ -56,7 +56,7 @@ It should be straightforward to add a case-insensitive version of this function 
 
     (strat <str> <pos>)
 
-returns the code of the che character at position `<pos>` in string expression `<str>`
+returns the code of the character at position `<pos>` in string expression `<str>`
 - if `<pos>` is negative, then the code of the character from `<pos>` positions from the end of the string is returned
 
 For example:
