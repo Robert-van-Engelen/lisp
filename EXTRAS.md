@@ -93,6 +93,7 @@ For example:
 - `(substr "abcdef" -2 6)` returns `"efabcd"`
 - `(substr "<>" 0 8)` returns `"<><><><>"`
 - `(substr "<>" 1 8)` returns `"><><><><"`
+- `(let (i 0) (while #t (write "\r" (substr "Welcome to Lisp!    " (mod i 20) 20)) (setq i (+ i 1))))` rotates a banner
 
 ```c
 L f_substr(L t, L *_) {
@@ -239,6 +240,45 @@ L f_utf8_sub(L t, L *_) {
 }
 struct { ... } prim[] = { ...
   {"utf8.sub", f_utf8_sub, NORMAL},             /* (utf8.sub x k [m]) => slice string x from char position k length m */
+```
+
+## System functions
+
+### system
+
+    (system <str>)
+
+executes the command given by the string `<str>` and returns its status code
+
+For example:
+- `(define dir (lambda args (system (string "ls " . args))))` use `(dir)` to list files and with args `(dir "-l *.c")`
+
+```c
+L f_system(L t, L *_) {
+  L x = car(t);
+  if (T(x) != STRG)
+    return err(5);
+  return system(A+ord(x));
+}
+struct { ... } prim[] = { ...
+  {"system",   f_system,  NORMAL},              /* (system x) executes the command x given as a string */
+```
+
+### usleep
+
+    (usleep <expr>)
+
+pauses execution for `<expr>` micro seconds
+
+```c
+#include <unistd.h>
+L f_usleep(L t, L *_) {
+  L x = car(t);
+  usleep(x);
+  return nil;
+}
+struct { ... } prim[] = { ...
+  {"usleep",   f_usleep,  NORMAL},              /* (usleep k) pause k micro seconds */
 ```
 
 ## Math functions
