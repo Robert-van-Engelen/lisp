@@ -114,7 +114,7 @@ const char *errors[ERRORS+1] = {
 /* heap address start offset, the heap starts at address A+H immediately above the pool */
 #define H (8*P)
 
-/* size Z of the link and size fields at the base address of each atom/string on the heap */
+/* size Z of the atom/string size field at the base address of each atom/string on the heap */
 #define Z sizeof(I)
 
 /* array of Lisp expressions, shared by the pool, heap and stack */
@@ -159,35 +159,36 @@ I sweep() {
 
 /* add i'th cell to the linked list of cells that refer to the same atom/string */
 void chain(I i) {
-  I k = *(I*)(A+ord(cell[i])-Z-Z);              /* atom/string link k is the k'th cell that uses the atom/string */
-  *(I*)(A+ord(cell[i])-Z-Z) = i;                /* add k'th cell to the linked list of atom/string cells */
+  I k = *(I*)(A+ord(cell[i])-Z);                /* atom/string link k is the k'th cell that uses the atom/string */
+  *(I*)(A+ord(cell[i])-Z) = i;                  /* add k'th cell to the linked list of atom/string cells */
   cell[i] = box(T(cell[i]), k);                 /* by updating the i'th cell atom/string ordinal to k */
 }
 
 /* compacting garbage collector recycles heap by removing unused atoms/strings and by moving used ones */
 void compact() {
-  I i, j;
-  for (i = H; i < hp; i += *(I*)(A+Z+i)+Z+Z)      /* reset all atom/string link fields to N (end of linked list) */
-    *(I*)(A+i) = N;
+  I i, j, k, l, n;
+  for (i = H; i < hp; i += n+Z) {               /* for each atom/string set its linked lists sentinel (end of list) */
+    n = *(I*)(A+i);                             /* get the atom/string size > 0 (data size + 1 for zero byte) */
+    *(I*)(A+i) = n+H;                           /* linked list sentinel is H+size where 0 < size < hp-H */
+  }
   for (i = 0; i < P; ++i)                       /* add each used atom/string cell in the pool to its linked list */
     if (used[i/64] & 1 << i/2%32 && (T(cell[i]) & ~(ATOM^STRG)) == ATOM)
       chain(i);
   for (i = sp; i < N; ++i)                      /* add each used atom/string cell on the stack to its linked list */
     if ((T(cell[i]) & ~(ATOM^STRG)) == ATOM)
       chain(i);
-  for (i = H, j = hp, hp = H; i < j; ) {        /* for each atom/string on the heap */
-    I k = *(I*)(A+i), n = *(I*)(A+Z+i)+Z+Z;
-    if (k < N) {                                /* if its linked list is not empty, then we need to keep it */
-      while (k < N) {                           /* traverse linked list to update atom/string cells to hp+Z+Z */
-        I l = ord(cell[k]);
-        cell[k] = box(T(cell[k]), hp+Z+Z);      /* hp+Z+Z is the new location of the atom/string after compaction */
-        k = l;
-      }
+  for (i = H, j = hp, hp = H; i < j; i += n) {  /* for each atom/string on the heap */
+    for (k = *(I*)(A+i), l = H; k < H || k > j; k = l) {
+      l = ord(cell[k]);
+      cell[k] = box(T(cell[k]), hp+Z);          /* hp+Z is the new location of the atom/string after compaction */
+    }
+    n = k-H+Z;                                  /* the atom/string size+Z, i+n is the next atom/string to compact */
+    if (l != H) {                               /* if this atom/string is used in the pool or stack, then keep it */
+      *(I*)(A+i) = k-H;                         /* restore the atom/string size from linked list sentinel k = H+size */
       if (hp < i)
         memmove(A+hp, A+i, n);                  /* move atom/string further down the heap to hp to compact the heap */
       hp += n;                                  /* update heap pointer to the available space above the atom/string */
     }
-    i += n;
   }
 }
 
@@ -235,14 +236,14 @@ void unwind(I i) {
 /* allocate n+1 bytes on the heap, returns heap offset of the allocated space */
 I alloc(I n) {
   I i;
-  if (hp+Z+Z+n+1 > (sp-1) << 3 || ALWAYS_GC) {  /* if insufficient heap space is available, then GC */
+  if (hp+Z+n+1 > (sp-1) << 3 || ALWAYS_GC) {    /* if insufficient heap space is available, then GC */
     gc();                                       /* GC */
-    if (hp+Z+Z+n+1 > (sp-1) << 3)               /* GC did not free up sufficient heap space */
+    if (hp+Z+n+1 > (sp-1) << 3)                 /* GC did not free up sufficient heap space */
       err(6);
   }
-  i = hp+Z+Z;
-  *(I*)(A+i-Z) = n+1;                           /* store the size n+1 in the size field */
-  *(A+i+n) = '\0';                              /* end the allocated block with a terminating zero byte for safety */
+  *(I*)(A+hp) = n+1;                            /* store the size n+1 (data size + 1) in the size field */
+  i = hp+Z;
+  *(A+i+n) = '\0';                              /* end the allocated block with a terminating zero byte */
   hp = i+n+1;                                   /* update heap pointer to the available space above the atom/string */
   return i;
 }
@@ -254,9 +255,9 @@ I copy(const char *s) {
 
 /* interning of atom names (symbols), returns a unique NaN-boxed ATOM */
 L atom(const char *s) {
-  I i = H+Z+Z;
+  I i = H+Z;
   while (i < hp && strcmp(A+i, s))              /* search the heap for matching atom (or string) s */
-    i += *(I*)(A+i-Z)+Z+Z;
+    i += *(I*)(A+i-Z)+Z;
   if (i >= hp)                                  /* if not found, then copy s to the heap for the new atom */
     i = copy(s);
   return box(ATOM, i);                          /* return unique NaN-boxed ATOM */

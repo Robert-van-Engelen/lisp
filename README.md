@@ -436,10 +436,12 @@ and an offset `H` such that byte-addressable address `A+H` points to the bottom 
     /* heap address start offset, the heap starts at address A+H immediately above the pool */
     #define H (8*P)
 
-Each atom and string stored in the heap has a link field and a size field located in front of its data.  The link field is only used during heap compacting.  During compacting, the link fields points to the linked list of corresponding `cell[]` with `ATOM` and `STRG` values whose ordinals that point to the data on the heap must be updated.  The size field contains the allocated size of the atom or string plus one for a terminating zero byte in the data.  The size of these fields is `Z`:
+Each atom and string stored in the heap has a size field located in front of its data.  The size field contains the allocated size of the atom or string plus one for a terminating zero byte in the data.  The byte size of this field is `Z`:
 
-    /* size Z of the link and size fields at the base address of each atom/string on the heap */
+    /* size Z of the atom/string size field at the base address of each atom/string on the heap */
     #define Z sizeof(I)
+
+During heap compacting, the size field is temporarily reused to store a link to a linked list of `ATOM` and `STRG` cells that point to it.  The linked list sentinel is the size value offset by `H`, which makes it distinguishable from pointers to cells in the pool (below the heap `<H`) and stack (above the heap `>hp`) and also serves to restore the size field after compacting.
 
 The free cells in the pool form a linked list `fp` with the list ending as zero.  The atom and string heap pointer `hp` points to available heap space above the allocated atoms and strings, initially `hp = H`.  The stack grows down from the top of `cell[]` towards the heap, starting with stack pointer `sp = N`.  We also define a `tr` tracing flag:
 
@@ -470,25 +472,26 @@ To construct a new cons pair `(x . y)` is easy, but we must guard against two po
 
 ### Allocating atoms and strings
 
-To allocate bytes on the heap to store atoms and strings, we just need to make sure we have sufficient free heap space available between `hp` and `sp`.  Note that `hp` is single byte addressable and `sp` is 8-byte addressable since `L` is a `double`.  The atom/string bytes are stored after the reference field of width `R`:
+To allocate bytes on the heap to store atoms and strings, we just need to make sure we have sufficient free heap space available between `hp` and `sp`.  Note that `hp` is single byte addressable and `sp` is 8-byte addressable since `L` is a `double`.  The atom/string bytes are stored after the reference field of width `Z`:
 
     /* allocate n+1 bytes on the heap, returns heap offset of the allocated space */
     I alloc(I n) {
-      I i = hp+R;                                   /* free atom/heap is located at hp+R */
-      n += R+1;                                     /* n+R+1 is the space we need to reserve */
-      if (hp+n > (sp-1) << 3 || ALWAYS_GC) {        /* if insufficient heap space is available, then GC */
+      I i;
+      if (hp+Z+n+1 > (sp-1) << 3 || ALWAYS_GC) {    /* if insufficient heap space is available, then GC */
         gc();                                       /* GC */
-        if (hp+n > (sp-1) << 3)                     /* GC did not free up sufficient heap/stack space */
-          err(6);;
-        i = hp+R;                                   /* new atom/string is located at hp+R on the heap */
+        if (hp+Z+n+1 > (sp-1) << 3)                 /* GC did not free up sufficient heap space */
+          err(6);
       }
-      hp += n;                                      /* update heap pointer to the available space above the atom/string */
+      *(I*)(A+hp) = n+1;                            /* store the size n+1 (data size + 1) in the size field */
+      i = hp+Z;
+      *(A+i+n) = '\0';                              /* end the allocated block with a terminating zero byte */
+      hp = i+n+1;                                   /* update heap pointer to the available space above the atom/string */
       return i;
     }
 
 ### Classic mark-sweep garbage collection
 
-Unused cell pairs in the pool are recycled using garbage collection.  One of the simplest algorithms is mark-sweep, developed by John McCarthy.  We need a bit vector to mark cells as used.  Because we mark cell pairs, the number of bits we need is half the pool size:
+Unused cell pairs in the pool are recycled using garbage collection.  One of the simplest algorithms is mark-sweep, developed by John McCarthy.  We need a bit vector to mark cells as used.  Because we mark cell pairs, the number of bits we need is half the pool size which is `P/64` rounded up when we use an array of 32-bit unsigned integers:
 
     /* bit vector corresponding to the pairs of cells in the pool marked 'used' (car and cdr cells are marked together) */
     uint32_t used[(P+63)/64];
@@ -524,7 +527,7 @@ The second stage then sweeps the pool to keep the used cell pairs only.  The fre
 
 The garbage collector resets the bit vector (all cell pairs are initially considered unused).  The first stage marks all cell pairs reachable from the global environment `env` and all cell pairs reachable from the stack.  The second stage sweeps all unusued cell pairs.  A third stage compacts the heap by removing unused atoms and strings:
 
-    /* garbage collector, returns number of free cells in the pool or raises err(7): out of memory */
+    /* garbage collector, returns number of free cells in the pool or raises err(7) */
     I gc() {
       I i;
       BREAK_OFF;                                    /* do not interrupt GC */
@@ -544,36 +547,46 @@ The compacting stage is performed as follows.
 
 ### Compacting garbage collection to recycle the atom/string heap
 
-To compact the heap, we construct a linked list of cells that refer to the same atom or string.  This serves two purposes.  First, if the linked list is empty then there are no cells in use that refer to the atom or string.  The atom or string can be removed.  Second, compacting the heap means moving atoms and strings down to keep only the used atoms and strings stored in the heap.  All holes left by unused atoms and strings are filled.  The linked list is traversed to update each `ATOM` and `STRG` cell to reference the new location of the atom or string on the heap:
+To compact the heap, we construct a linked list of cells that refer to the same atom or string.  This serves two purposes.  First, if the linked list is empty then there are no cells in use that refer to the atom or string.  The atom or string can be removed.  Second, compacting the heap means moving atoms and strings down to remove empty spaces left by unused atoms and strings.  We only Keep the used atoms and strings on the heap.  The linked list is traversed to update each `ATOM` and `STRG` cell to reference the new location of the atom or string on the heap.  The clever bit here is that we can use the atom and string size field to store a temporary link pointing to the linked list.  The sentinel of this list is the atom/string size `+H` that cannot clash with a pointer to a cell in the pool below the heap or stack above the heap.
 
     /* compacting garbage collector recycles heap by removing unused atoms/strings and by moving used ones */
     void compact() {
-      I i, j;
-      for (i = H; i < hp; i += strlen(A+R+i)+R+1)   /* reset all atom/string reference fields to N (end of linked list) */
-        *(I*)(A+i) = N;
+      I i, j, k, l, n;
+      for (i = H; i < hp; i += n+Z) {               /* for each atom/string set its linked lists sentinel (end of list) */
+        n = *(I*)(A+i);                             /* get the atom/string size > 0 (data size + 1 for zero byte) */
+        *(I*)(A+i) = n+H;                           /* linked list sentinel is H+size where 0 < size < hp-H */
+      }
       for (i = 0; i < P; ++i)                       /* add each used atom/string cell in the pool to its linked list */
         if (used[i/64] & 1 << i/2%32 && (T(cell[i]) & ~(ATOM^STRG)) == ATOM)
-          link(i);
+          chain(i);
       for (i = sp; i < N; ++i)                      /* add each used atom/string cell on the stack to its linked list */
         if ((T(cell[i]) & ~(ATOM^STRG)) == ATOM)
-          link(i);
-      for (i = H, j = hp, hp = H; i < j; ) {        /* for each atom/string on the heap */
-        I k = *(I*)(A+i), n = strlen(A+R+i)+R+1;
-        if (k < N) {                                /* if its linked list is not empty, then we need to keep it */
-          while (k < N) {                           /* traverse linked list to update atom/string cells to hp+R */
-            I l = ord(cell[k]);
-            cell[k] = box(T(cell[k]), hp+R);        /* hp+R is the new location of the atom/string after compaction */
-            k = l;
-          }
+          chain(i);
+      for (i = H, j = hp, hp = H; i < j; i += n) {  /* for each atom/string on the heap */
+        for (k = *(I*)(A+i), l = H; k < H || k > j; k = l) {
+          l = ord(cell[k]);
+          cell[k] = box(T(cell[k]), hp+Z);          /* hp+Z is the new location of the atom/string after compaction */
+        }
+        n = k-H+Z;                                  /* the atom/string size+Z, i+n is the next atom/string to compact */
+        if (l != H) {                               /* if this atom/string is used in the pool or stack, then keep it */
+          *(I*)(A+i) = k-H;                         /* restore the atom/string size from linked list sentinel k = H+size */
           if (hp < i)
-            memmove(A+hp, A+i, n);                  /* move atom/string further down the heap to hp+R to compact the heap */
+            memmove(A+hp, A+i, n);                  /* move atom/string further down the heap to hp to compact the heap */
           hp += n;                                  /* update heap pointer to the available space above the atom/string */
         }
-        i += n;
       }
     }
 
-Since the pool and stack share the same `cell[]` array, the linked lists just contain `cell[]` indices to the `ATOM` and `STRG` cells to update during compaction.  The runtime cost is in the order of the number of `ATOM` and `STRG` cells.  Memory overhead of this method is limited to an index per atom/string on the heap of width `R`.  This space is only used during compaction.  It could serve a dual purpose such as a length field of the atom/string e.g. to store binary data that doesn't end with a \0.  This would require marking the length with a bit so that the length can serve as a sentinel instead of `N` to restore the length after compaction.
+The `chain` function adds `i` to the linked list associated with the `ATOM` or `STRG` in `cell[i]`:
+
+    /* add i'th cell to the linked list of cells that refer to the same atom/string */
+    void chain(I i) {
+      I k = *(I*)(A+ord(cell[i])-Z);                /* atom/string link k is the k'th cell that uses the atom/string */
+      *(I*)(A+ord(cell[i])-Z) = i;                  /* add k'th cell to the linked list of atom/string cells */
+      cell[i] = box(T(cell[i]), k);                 /* by updating the i'th cell atom/string ordinal to k */
+    }
+
+Since the pool and stack share the same `cell[]` array, the linked lists just contain `cell[]` indices to the `ATOM` and `STRG` cells to update during compaction.  The runtime cost is in the order of the number of `ATOM` and `STRG` cells.
 
 ### Alternative: non-recursive mark-sweep garbage collection using pointer reversal
 
