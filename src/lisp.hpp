@@ -964,15 +964,14 @@ L eval(L x, L e) {
         x = cdr(x);
       }
       if (T(v) == CONS) {                       /* continue binding v if x is after a dot (... . x) by evaluating x */
-        *y = eval(x, e);                        /* evaluate x and save its value y to protect it from getting GC'ed */
-        while (T(v) == CONS && T(*y) == CONS) {
-          *d = pair(car(v), car(*y), *d);       /* add new binding to the front of d */
+        x = *y = eval(x, e);                    /* evaluate x and save its value y to protect it from getting GC'ed */
+        while (T(v) == CONS && T(x) == CONS) {
+          *d = pair(car(v), car(x), *d);        /* add new binding to the front of d */
           v = cdr(v);
-          *y = cdr(*y);
+          x = cdr(x);
         }
         if (T(v) == CONS)                       /* error if insufficient actual arguments x are provided */
           err(5);
-        x = *y;
       }
       else if (T(x) == CONS)                    /* if more arguments x are provided then evaluate them all */
         x = evlis(x, e);

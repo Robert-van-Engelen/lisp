@@ -58,7 +58,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     $ ./lisp
     ...
     defun
-    6198+1922>(load "nqueens.lisp")
+    6198+8066>(load "nqueens.lisp")
     ...
     (- - - - - - - @)
     (- - - @ - - - -)
@@ -70,7 +70,7 @@ Initialization imports `init.lisp` first, when located in the working directory.
     (- - - - @ - - -)
     ()
     done
-    5478+1897>(quit)
+    5478+8041>(quit)
     $
 
 The prompt displays the number of free cons pair cells + free stack cells available.  The heap and stack are located in the same memory space.  Therefore, the second number is also indicative of the size of the heap space available to store new atoms and strings.
@@ -81,9 +81,9 @@ To quit Lisp, type `(quit)`.
 
 An execution trace displays the stack depth with each evaluation step:
 
-    6198+1922>(trace)
+    6198+8066>(trace)
     1
-    6198+1922>((curry + 1) 2 3)
+    6198+8066>((curry + 1) 2 3)
        9: curry => {1760}	
        9: + => <+>	
        9: 1 => 1	
@@ -246,7 +246,16 @@ a macro is like a function, except that it does not evaluate its arguments.  Mac
 
     `<expr>
 
-backquotes `<expr>`, which quotes `<expr>`, but evaluates all `,<expr>` subexpressions therein before quoting.  For example, the macro example above can also be written as ``(define defun (macro (f v x) `(define ,f (lambda ,v ,x))))`` without using `list` to construct lists and "down quotes" to replace variables with their values i.e. unquotes.
+this backquotes `<expr>`, which quotes `<expr>`, but evaluates all `,<expr>` subexpressions therein before quoting.  For example, the macro example above can also be written as ``(define defun (macro (f v x) `(define ,f (lambda ,v ,x))))`` without using `list` to construct lists and "down quotes" to replace variables with their values i.e. unquotes.
+
+Note that the dot operator (`.`) may be used with macros, including in a macro's list of variables and in its body.  This allows for a simple form of "splicing" macro arguments.  The following macro examples take any number of arguments and splices them (note that `args` after the `.` should not be prefixed with a comma):
+
+    >(define add-a-lot (macro args `(+ . args)))
+    >(add-a-lot 3 4 5 6)
+    18
+    >(define swap (macro (x y . args) `(,y ,x . args)))
+    >(swap 1 + 2 3 4)
+    10
 
 ### Globals
 
