@@ -994,7 +994,7 @@ L eval(L x, L e) {
         err(5);
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
-      x = *y = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *z to protect */
+      x = *y = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *y to protect */
     }
     else
       err(4);                                   /* if f is not a closure or macro, then we cannot apply it */
