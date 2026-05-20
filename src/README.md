@@ -1,8 +1,8 @@
 # Lisp interpreter project source code
 
 - The Lisp interpreter in 1k lines of C: [lisp.c](lisp.c)
-- Alternative version with non-recursive mark-sweep pointer reversal: [lisp-pr.c](lisp-pr.c)
-- Alternative version with single precision float and non-recursive mark-sweep pointer reversal: [lisp-pr-single.c](lisp-pr-single.c)
+- Version with non-recursive mark-sweep pointer reversal: [lisp-pr.c](lisp-pr.c)
+- Version with non-recursive mark-sweep pointer reversal, single precision float and 32 bit or 16 bit integers (e.g. for 8 bit machines): [lisp-pr-single.c](lisp-pr-single.c)
 - C++17 header-file-only version: [lisp.hpp](lisp.hpp) and C++17 REPL main [lisp-repl.cpp](lisp-repl.cpp)
 - Optional Lisp functions and macros imported by the Lisp interpreter: [init.lisp](init.lisp)
 
