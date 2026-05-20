@@ -61,11 +61,11 @@ void using_history() { }
         p      pair, a cons of two Lisp expressions
         e,d    environment, a list of pairs, e.g. created with (define v x)
         v      the name of a variable (an atom) or a list of variables */
-#define I uint32_t
+#define I uint32_t      /* uint32_t for 20 bits ord() or uint16_t for 16 bit ord() */
 #define L float
 
 /* T(x) returns the tag bits of a NaN-boxed Lisp expression x */
-#define T(x) (*(I*)&x >> 20)
+#define T(x) (*(uint32_t*)&x >> 20)
 
 /* primitive, atom, string, cons, closure, macro and nil tags for NaN boxing (reserve 0x7f8 for nan) */
 enum { PRIM = 0x7f9, ATOM = 0x7fa, STRG = 0x7fb, CONS = 0x7fc, CLOS = 0x7fe, MACR = 0x7ff, NIL = 0xfff };
@@ -74,10 +74,10 @@ enum { PRIM = 0x7f9, ATOM = 0x7fa, STRG = 0x7fb, CONS = 0x7fc, CLOS = 0x7fe, MAC
    ord(x):   returns the 20 bits ordinal of the NaN-boxed float x
    num(n):   convert or check number n (does nothing, e.g. could check for NaN)
    equ(x,y): returns nonzero if x equals y */
-L box(I t, I i) { L x; *(I*)&x = (I)t << 20 | i; return x; }
-I ord(L x)      { return *(I*)&x & 0xfffff; }           /* remove the tag */
+L box(I t, I i) { L x; *(uint32_t*)&x = (uint32_t)t << 20 | i; return x; }
+I ord(L x)      { return *(uint32_t*)&x & 0xfffff; }    /* remove the tag */
 L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
-I equ(L x, L y) { return *(I*)&x == *(I*)&y; }
+I equ(L x, L y) { return *(uint32_t*)&x == *(uint32_t*)&y; }
 
 /* the file(s) we are reading from or fin=0 when reading from the terminal */
 I fin = 0;
@@ -487,7 +487,7 @@ L tick() {
 
 /* return a parsed Lisp expression */
 L parse() {
-  L x; I i;
+  L x; int i;
   switch (*buf) {
     case '(':  return list();                   /* if token is ( then parse a list */
     case '\'': return cons(atom("quote"), cons(readlisp(), nil)); /* if token is ' then quote an expression */
