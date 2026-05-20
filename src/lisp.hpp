@@ -540,7 +540,7 @@ L tick() {
 
 /* return a parsed Lisp expression */
 L parse() {
-  L x; I i;
+  L x; int i;
   switch (*buf) {
     case '(':  return list();                   /* if token is ( then parse a list */
     case '\'': return cons(atom("quote"), cons(read(), nil)); /* if token is ' then quote an expression */
