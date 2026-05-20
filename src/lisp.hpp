@@ -131,9 +131,11 @@ static const char *error(int i) {
 
 #ifdef HAVE_SIGNAL_H
 
-#define GETSIGINT(obj) setjmp((obj).jb);
+/* only one lisp engine can set a SIGINT handler, uses a static jmp_buf */
+#define GETSIGINT(obj) ( (obj).sigme = &(obj), setjmp((obj).jb) )
+static inline This* sigme = NULL;
 static inline jmp_buf jb;
-static void sigint(int i) { longjmp(jb, i); }                    /* cannot throw in sig handlers */
+static void sigint(int i) { if (sigme->fin || sigme->line) longjmp(jb, i); abort(); }
 static void break_on() { signal(SIGINT, This::sigint); }
 static void break_off() { signal(SIGINT, SIG_IGN); }
 static void break_default() { signal(SIGINT, SIG_DFL); }
@@ -722,10 +724,10 @@ L f_leta(L t, L *e) {
 }
 
 L f_letrec(L t, L *e) {
-  L s;
-  for (s = t; more(s); s = cdr(s))
-    *e = pair(car(car(s)), nil, *e);
-  for (s = *e; more(t); s = cdr(s), t = cdr(t))
+  L s, *p;
+  for (s = t, p = push(nil); more(s); s = cdr(s), p = &CDR(*p))
+    *p = pair(car(car(s)), nil, nil);
+  for (*p = *e, s = *e = pop(); more(t); s = cdr(s), t = cdr(t))
     CDR(car(s)) = eval(f_begin(cdr(car(t)), e), *e);
   return T(t) == NIL ? nil : car(t);
 }

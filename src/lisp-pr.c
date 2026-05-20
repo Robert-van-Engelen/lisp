@@ -79,6 +79,16 @@ I ord(L x)      { return *(uint64_t*)&x; }              /* narrow return to 32 b
 L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
 I equ(L x, L y) { return *(uint64_t*)&x == *(uint64_t*)&y; }
 
+/* the file(s) we are reading from or fin=0 when reading from the terminal */
+I fin = 0;
+FILE *in[10];
+
+/* the file we are writing to, stdout by default */
+FILE *out;
+
+/* tokenization buffer, the next character we're looking at, readline pointer and line, prompt string */
+char buf[256], see = '\n', *ptr = "", *line = NULL, ps[20];
+
 /*----------------------------------------------------------------------------*\
  |      ERROR HANDLING AND ERROR MESSAGES                                     |
 \*----------------------------------------------------------------------------*/
@@ -86,9 +96,9 @@ I equ(L x, L y) { return *(uint64_t*)&x == *(uint64_t*)&y; }
 /* setjmp-longjmp jump buffer */
 jmp_buf jb;
 
-/* report and throw an exception */
+/* report and throw an exception or abort with CTRL-C from REPL prompt */
 #define ERR(n, ...) (fprintf(stderr, __VA_ARGS__), err(n))
-L err(int n) { longjmp(jb, n); }
+L err(int n) { if (n != 2 || fin || line) longjmp(jb, n); abort(); }
 
 #define ERRORS 8
 const char *errors[ERRORS+1] = {
@@ -112,7 +122,7 @@ const char *errors[ERRORS+1] = {
 #define A (char*)cell
 
 /* heap address start offset, the heap starts at address A+H immediately above the pool */
-#define H (8*P)
+#define H (sizeof(L)*P)
 
 /* size Z of the atom/string size field at the base address of each atom/string on the heap */
 #define Z sizeof(I)
@@ -350,17 +360,10 @@ I more(L t) {
  |      READ                                                                  |
 \*----------------------------------------------------------------------------*/
 
-/* the file(s) we are reading or fin=0 when reading from the terminal */
-I fin = 0;
-FILE *in[10];
-
 /* specify an input file to parse and try to open it */
 FILE *input(const char *s) {
   return fin <= 9 && (in[fin] = fopen(s, "r")) ? in[fin++] : NULL;
 }
-
-/* tokenization buffer, the next character we're looking at, the readline line, prompt and input file */
-char buf[256], see = '\n', *ptr = "", *line = NULL, ps[20];
 
 /* return the character we see, advance to the next character */
 char get() {
@@ -500,9 +503,6 @@ L parse() {
 /*----------------------------------------------------------------------------*\
  |      PRIMITIVES -- SEE THE TABLE WITH COMMENTS FOR DETAILS                 |
 \*----------------------------------------------------------------------------*/
-
-/* the file we are writing to, stdout by default */
-FILE *out;
 
 /* construct a new list of evaluated expressions in list t, i.e. the arguments passed to a function or primitive */
 L eval(L, L);
@@ -670,10 +670,10 @@ L f_leta(L t, L *e) {
 }
 
 L f_letrec(L t, L *e) {
-  L s;
-  for (s = t; more(s); s = cdr(s))
-    *e = pair(car(car(s)), nil, *e);
-  for (s = *e; more(t); s = cdr(s), t = cdr(t))
+  L s, *p;
+  for (s = t, p = push(nil); more(s); s = cdr(s), p = &CDR(*p))
+    *p = pair(car(car(s)), nil, nil);
+  for (*p = *e, s = *e = pop(); more(t); s = cdr(s), t = cdr(t))
     CDR(car(s)) = eval(f_begin(cdr(car(t)), e), *e);
   return T(t) == NIL ? nil : car(t);
 }
@@ -794,7 +794,7 @@ L f_quit(L t, L *_) {
 }
 
 /* table of Lisp primitives, each has a name s, a function pointer f, and an evaluation mode m */
-struct {
+const struct {
   const char *s;
   L (*f)(L, L*);
   enum { NORMAL, SPECIAL, TAILCALL } m;
