@@ -714,7 +714,7 @@ The following `dump` function displays the contents of the pool, e.g. when added
       printf("\nenv=%u fp=%u hp=%u sp=%u\n", ord(env), fp, hp, sp);
     }
 
-## Embedding
+## Embedding Lisp
 
 Embedding a Lisp interpreter should be straightforward by renaming `main()` to `init()` to initialize the interpreter.  Remove the REPL loop from this function.
 
@@ -827,3 +827,114 @@ The `num()` function does not throw an error in the default implementation, when
     L num(L n) {
       return n == n ? n : err(5);
     }
+
+## Extending Lisp
+
+Extending Lisp with new primitives is not too challenging.  A new primitive is defined as a C function, say `f_count`:
+
+    f_count(L t, L *e) {
+      I k;
+      for (k = 0; T(t) != NIL; t = cdr(t)) {
+        L x = car(t);
+        /* atoms and strings x are stored at address A+ord(x) and have a preceeding size+1 field of type I where Z=sizeof(I) */
+        if ((T(x) & ~(ATOM^STRG)) == ATOM)
+          k += *(I*)(A+ord(x)-Z)-1;
+        else
+          for (; (T(x) & ~(CONS^MACR)) == CONS; ++k)
+            x = cdr(x);
+      }
+      return k;
+    }
+
+Our function counts the number of characters in an atom or string argument, and counts the length of a list argument.  We keep counting over all arguments in the list `t` passed to the function, such that `(count 'abc)` gives 3, `(count '(1 2 3 4))` gives 4, and `(count '(1 2) '(3 4) '(5))` gives 5 for example.  Note that environment `*e` passed to `f_count` can be ignored.  Since our function `f_count` does not construct new atoms, strings, or lists, we don't need to use `push` those to protect them from being garbage collected during other constructions or evaluations in our function.
+
+Then we add `f_count` to the `prim` array:
+
+    } prim[] = {
+      ...
+      {"count",    f_count,   NORMAL},              /* sum count of argument lengths */
+      {0}
+    };
+
+In the following example we have to use `push` to protect a temporary string constructed from the function arguments, because we also call `alloc` to reserve memory that may trigger a garbage collection phase.
+
+Our new `f_slice` function takes a starting index, a length, followed by one or more arguments that from a string to slice from the given start up to the given length:
+
+    L f_slice(L t, L *e) {
+      int64_t m, n; L *x; I i, k, r;
+      /* first argument is the start index m */
+      m = (int64_t)car(t);
+      t = cdr(t);
+      /* second argument is the length n */
+      n = (int64_t)car(t);
+      t = cdr(t);
+      /* create a string *x from all remaining arguments, push to protect it from next alloc() GC */
+      x = push(f_string(t, e));
+      /* get the length of this string k */
+      k = *(I*)(A+ord(*x)-Z)-1;
+      /* a negative m starts from the end of the string */
+      if (m < 0) {
+        m += k;
+        if (m < 0)
+          m = 0;
+      }
+      else if (m > k)
+        m = k;
+      /* a negative n reverses the slice */
+      r = n < 0;
+      if (r)
+        n = -n;
+      if (m+n > k)
+        n = k-m;
+      i = alloc(n);
+      if (r)
+        while (n--)
+          *(A+i+n) = *(A+ord(*x)+m++);
+      else
+        memcpy(A+i, A+ord(*x)+m, n);
+      /* release the temporary string *x */
+      pop();
+      return box(STRG, i);
+    }
+
+Then we add `f_slice` to the `prim` array:
+
+    } prim[] = {
+      ...
+      {"count",    f_count,   NORMAL},              /* sum count of argument lengths */
+      {"slice",    f_slice,   NORMAL},              /* slice the stringified arguments */
+      {0}
+    };
+
+For example, `(slice 0 3 'abcdef) gives `"abc"`, `(slice -3 2 'abcdef)` gives `"de"`, `(slice 2 -4 "abcdef")` gives `"fedc"`, and `(slice 0 -99 123 456 789)` gives `"987654321"`.
+
+To test whether your new functions are robust aginst interfering garbage collections, compile the source code with `-DDEBUG` to force GC for every cell allocation performed by the interpreter.  This slows the interpreter down significantly, but you will quickly notice when GC destroyed a new atom, string or list that wasn't protected with a `push`.  Don't forget to release each `push` with `pop` when the function returns.
+
+Adding a special form `(write-to "results.txt" (run stuff))` to write all output of `(run stuff)` that it produces with `(print ...)`, `(println ...)` and `(write ...)` to a file `results.txt`:
+
+    L f_writeto(L t, L *e) {
+      FILE *fp = out;
+      L x = eval(car(t), *e);
+      t = cdr(t);
+      out = fopen(A+ord(x), "w");
+      if (out) {
+        for (; T(t) == CONS; t = cdr(t))
+          x = eval(car(t), *e);
+        fclose(out);
+      }
+      out = fp;
+      return x;
+    }
+
+    } prim[] = {
+      ...
+      {"write-to", f_writeto, SPECIAL},             /* send output of expressions to a file */
+      {0}
+    };
+
+For example:
+
+    (load "nqueens.lisp")
+    (write-to "nqueens.log" (solve board))
+
+But don't use `-DDEBUG` to compile the interpreter which makes solving the 8-queens problem very slow.
