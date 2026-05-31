@@ -913,6 +913,7 @@ To test whether your new functions are robust aginst interfering garbage collect
 
 Adding a special form `(write-to "results.txt" (run stuff))` to write all output of `(run stuff)` that it produces with `(print ...)`, `(println ...)` and `(write ...)` to a file `results.txt`:
 
+```c
     L f_writeto(L t, L *e) {
       FILE *fp = out;
       L x = eval(car(t), *e);
@@ -926,16 +927,21 @@ Adding a special form `(write-to "results.txt" (run stuff))` to write all output
       out = fp;
       return x;
     }
+```
 
+```c
     } prim[] = {
       ...
       {"write-to", f_writeto, SPECIAL},             /* send output of expressions to a file */
       {0}
     };
+```
 
 For example:
 
+```lisp
     (load "nqueens.lisp")
     (write-to "nqueens.log" (solve board))
+```
 
 But don't use `-DDEBUG` to compile the interpreter which makes solving the 8-queens problem very slow.
