@@ -889,7 +889,7 @@ The `num()` function does not throw an error in the default implementation, when
 Extending Lisp with new primitives is not too challenging.  A new primitive is defined as a C function, say `f_count`:
 
 ```c
-    f_count(L t, L *e) {
+    L f_count(L t, L *e) {
       I k;
       for (k = 0; T(t) != NIL; t = cdr(t)) {
         L x = car(t);
@@ -924,10 +924,10 @@ Our new `f_slice` function takes a starting index, a length, followed by one or 
     L f_slice(L t, L *e) {
       int64_t m, n; L *x; I i, k, r;
       /* first argument is the start index m */
-      m = (int64_t)car(t);
+      m = (int64_t)num(car(t));
       t = cdr(t);
       /* second argument is the length n */
-      n = (int64_t)car(t);
+      n = (int64_t)num(car(t));
       t = cdr(t);
       /* create a string *x from all remaining arguments, push to protect it from next alloc() GC */
       x = push(f_string(t, e));
@@ -947,7 +947,7 @@ Our new `f_slice` function takes a starting index, a length, followed by one or 
         n = -n;
       if (m+n > k)
         n = k-m;
-      /* alloc n bytes (0-terminated) to store the slice at address A+i */
+      /* alloc n bytes (0-terminated) to store the slice at address A+i, may trigger GC */
       i = alloc(n);
       if (r)
         while (n--)
