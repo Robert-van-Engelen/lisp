@@ -359,14 +359,19 @@ exits Lisp.
 
 Additional Lisp functions and macros are defined in [init.lisp](src/init.lisp).
 
+```lisp
     (defun <symbol> <variables> <expr>)
+```
 
 defines a named function with variables and a function body.  A shorthand for `(define <symbol> (lambda <variables> <expr>))`.
 
+```lisp
     (defmacro <symbol> <variables> <expr>)
+```
 
 defines a named macro with variables and a body.  A shorthand for `(define <symbol> (macro <variables> <expr>))`.
 
+```lisp
     (null? x)
     (number? x)
     (symbol? x)
@@ -374,18 +379,24 @@ defines a named macro with variables and a body.  A shorthand for `(define <symb
     (pair? x)
     (atom? x)
     (list? x)
+```
 
 returns `#t` if `x` is of a specific type or structure.
 
+```lisp
     (equal? x y)
+```
 
 returns `#t` if values `x` and `y` are identical or structurally equal.
 
+```lisp
     (seq n1 n2)
     (range n1 n2 [n3])
+```
 
 returns a list of numbers `n1` up to but excluding `n2`, with an optional step `n3` when specified.
 
+```lisp
     (length t)
     (append t1 t2)
     (reverse t)
@@ -400,14 +411,19 @@ returns a list of numbers `n1` up to but excluding `n2`, with an optional step `
     (mapcar f t)
     (map f t1 t2 ... tn)
     (zip t1 t2 ... tn)
+```
 
 which are the common non-destructive list operations on lists `t` with functions `f` and values `x`.
 
+```lisp
     (Y f)
+```
 
 is the fixed-point [Y combinator](https://en.wikipedia.org/wiki/Fixed-point_combinator#Fixed-point_combinators_in_lambda_calculus).
 
+```lisp
     (reveal f)
+```
 
 reveals the contents of `f` by displaying the `lambda` of a closure `f` and the body of a `macro` `f`.
 
@@ -417,53 +433,70 @@ reveals the contents of `f` by displaying the `lambda` of a closure `f` and the 
 
 Like [tinylisp](https://github.com/Robert-van-Engelen/tinylisp), this Lisp interpreter's memory is a single `cell[N]` array of Lisp expressions `L`.  The difference is that this interpreter's memory `cell[]` contains a pool of free and used cons pairs to recycle using garbage collection, a heap to store atoms and strings, and a stack:
 
+```c
     /* array of Lisp expressions, shared by the pool, heap and stack */
     L cell[N];
+```
 
 The size of the pool is parameterized as constant `P`:
 
+```c
     /* number of cells to allocate for the cons pair pool, increase P as desired */
     #define P 8192
+```
 
 The size of the stack with the heap below it is parameterized as constant `S`:
 
+```c
     /* number of cells to allocate for the shared stack and heap, increase S as desired */
     #define S 2048
+```
 
 The total size is constant `N`:
 
+```c
     /* total number of cells to allocate = P+S */
     #define N (P+S)
+```
 
 To access the heap with atoms and strings, we use a byte-addressable address `A`:
 
+```c
     /* base address of the atom/string heap */
     #define A (char*)cell
+```
 
 and an offset `H` such that byte-addressable address `A+H` points to the bottom of the heap immediately above the pool `cell[P]`:
 
+```c
     /* heap address start offset, the heap starts at address A+H immediately above the pool */
     #define H (8*P)
+```
 
 Each atom and string stored in the heap has a size field located in front of its data.  The size field contains the allocated size of the atom or string plus one for a terminating zero byte in the data.  The byte size of this field is `Z`:
 
+```c
     /* size Z of the atom/string size field at the base address of each atom/string on the heap */
     #define Z sizeof(I)
+```
 
 During heap compacting, the size field is temporarily reused to store a link to a linked list of `ATOM` and `STRG` cells that point to it.  The linked list sentinel is the size value offset by `H`, which makes it distinguishable from pointers to cells in the pool (below the heap `<H`) and stack (above the heap `>hp`) and also serves to restore the size field after compacting.
 
 The free cells in the pool form a linked list `fp` with the list ending as zero.  The atom and string heap pointer `hp` points to available heap space above the allocated atoms and strings, initially `hp = H`.  The stack grows down from the top of `cell[]` towards the heap, starting with stack pointer `sp = N`.  We also define a `tr` tracing flag:
 
+```c
     /* fp: free pointer points to free cell pair in the pool, next free pair is ord(cell[fp]) unless fp=0
        hp: heap pointer, A+hp points free atom/string heap space above the pool and below the stack
        sp: stack pointer, the stack starts at the top of cell[] with sp=N
        tr: 0 when tracing is off, 1 or 2 to trace Lisp evaluation steps */
     I fp = 0, hp = H, sp = N, tr = 0;
+```
 
 ### Consing
 
 To construct a new cons pair `(x . y)` is easy, but we must guard against two potential problems.  First, what to do if the pool is already full?  Second, if it is full and we invoke garbage collection, how do we make sure we do not lose the unprotected `x` and `y` values when garbage collection recycles them?  The `x` and `y` values may be temporary lists for example.  A simple and safe approach is to assume that we have at least one cell pair free to construct `(x . y)`.  If there are no free cells left after that, we invoke garbage collection while protecting the pair `(x . y)` and its constituent `x` and `y`:
 
+```c
     /* construct pair (x . y) returns a NaN-boxed CONS */
     L cons(L x, L y) {
       L p; I i = fp;                                /* i'th cons cell pair car cell[i] and cdr cell[i+1] is free */
@@ -478,11 +511,13 @@ To construct a new cons pair `(x . y)` is easy, but we must guard against two po
       }
       return p;                                     /* return NaN-boxed CONS */
     }
+```
 
 ### Allocating atoms and strings
 
 To allocate bytes on the heap to store atoms and strings, we just need to make sure we have sufficient free heap space available between `hp` and `sp`.  Note that `hp` is single byte addressable and `sp` is 8-byte addressable since `L` is a `double`.  The atom/string bytes are stored after the reference field of width `Z`:
 
+```c
     /* allocate n+1 bytes on the heap, returns heap offset of the allocated space */
     I alloc(I n) {
       I i;
@@ -497,16 +532,20 @@ To allocate bytes on the heap to store atoms and strings, we just need to make s
       hp = i+n+1;                                   /* update heap pointer to the available space above the atom/string */
       return i;
     }
+```
 
 ### Classic mark-sweep garbage collection
 
 Unused cell pairs in the pool are recycled using garbage collection.  One of the simplest algorithms is mark-sweep, developed by John McCarthy.  We need a bit vector to mark cells as used.  Because we mark cell pairs, the number of bits we need is half the pool size which is `P/64` rounded up when we use an array of 32-bit unsigned integers:
 
+```c
     /* bit vector corresponding to the pairs of cells in the pool marked 'used' (car and cdr cells are marked together) */
     uint32_t used[(P+63)/64];
+```
 
 To check if the i'th cell is used, its bit is checked with `used[i/64] & 1 << i/2%32)`.  To set the bit for the pair i and i+1 (remember we mark both cells with one bit), we execute `used[i/64] |= 1 << i/2%32`.  With these two ingredients, our mark stage is pretty simple given a root cell i to mark all cells reachable transitively via car `cell[i]` and cdr `cell[i+1]`:
 
+```c
     /* mark-sweep garbage collector recycles cons pair pool cells, finds and marks cells that are used */
     void mark(I i) {
       while (!(used[i/64] & 1 << i/2%32)) {         /* while i'th cell pair is not used in the pool */
@@ -518,9 +557,11 @@ To check if the i'th cell is used, its bit is checked with `used[i/64] & 1 << i/
         i = ord(cell[i+1]);                         /* iteratively mark cdr cell[i+1] */
       }
     }
+```
 
 The second stage then sweeps the pool to keep the used cell pairs only.  The free list of cell pairs `fp` is constructed from scratch, such that next free pairs are located upwards from the previous free cell pair:
 
+```c
     /* mark-sweep garbage collector recycles cons pair pool cells, returns total number of free cells in the pool */
     I sweep() {
       I i, j;
@@ -533,9 +574,11 @@ The second stage then sweeps the pool to keep the used cell pairs only.  The fre
       }
       return j;                                     /* return number of cells freed */
     }
+```
 
 The garbage collector resets the bit vector (all cell pairs are initially considered unused).  The first stage marks all cell pairs reachable from the global environment `env` and all cell pairs reachable from the stack.  The second stage sweeps all unusued cell pairs.  A third stage compacts the heap by removing unused atoms and strings:
 
+```c
     /* garbage collector, returns number of free cells in the pool or raises err(7) */
     I gc() {
       I i;
@@ -551,6 +594,7 @@ The garbage collector resets the bit vector (all cell pairs are initially consid
       BREAK_ON;                                     /* enable interrupt */
       return i ? i : err(7);
     }
+```
 
 The compacting stage is performed as follows.
 
@@ -558,6 +602,7 @@ The compacting stage is performed as follows.
 
 To compact the heap, we construct a linked list of cells that refer to the same atom or string.  This serves two purposes.  First, if the linked list is empty then there are no cells in use that refer to the atom or string.  The atom or string can be removed.  Second, compacting the heap means moving atoms and strings down to remove empty spaces left by unused atoms and strings.  We only Keep the used atoms and strings on the heap.  The linked list is traversed to update each `ATOM` and `STRG` cell to reference the new location of the atom or string on the heap.  The clever bit here is that we can use the atom and string size field to store a temporary link pointing to the linked list.  The sentinel of this list is the atom/string size `+H` that cannot clash with a pointer to a cell in the pool below the heap or stack above the heap.
 
+```c
     /* compacting garbage collector recycles heap by removing unused atoms/strings and by moving used ones */
     void compact() {
       I i, j, k, l, n;
@@ -585,15 +630,18 @@ To compact the heap, we construct a linked list of cells that refer to the same 
         }
       }
     }
+```
 
 The `chain` function adds `i` to the linked list associated with the `ATOM` or `STRG` in `cell[i]`:
 
+```c
     /* add i'th cell to the linked list of cells that refer to the same atom/string */
     void chain(I i) {
       I k = *(I*)(A+ord(cell[i])-Z);                /* atom/string link k is the k'th cell that uses the atom/string */
       *(I*)(A+ord(cell[i])-Z) = i;                  /* add k'th cell to the linked list of atom/string cells */
       cell[i] = box(T(cell[i]), k);                 /* by updating the i'th cell atom/string ordinal to k */
     }
+```
 
 Since the pool and stack share the same `cell[]` array, the linked lists just contain `cell[]` indices to the `ATOM` and `STRG` cells to update during compaction.  The runtime cost is in the order of the number of `ATOM` and `STRG` cells.
 
@@ -603,6 +651,7 @@ Non-recursive mark-sweep with pointer reversal has the advantage that no additio
 
 I couldn't find an acceptable example of a mark-sweep garbage collector using pointer reversal.  After tinkering a bit with different variations of the same theme, I came up with the following algorithm and implementation that is both elegant and efficient:
 
+```c
     /* mark-sweep garbage collector recycles cons pair pool cells, finds and marks cells that are used */
     void mark(I i) {
       I j = N;                                      /* the cell above, N is a sentinel value, i.e. no cell above the root */
@@ -633,6 +682,7 @@ I couldn't find an acceptable example of a mark-sweep garbage collector using po
         }
       }
     }
+```
 
 The clever bit is that a car cell has an even index and a cdr cell has an odd index in the pool.  We use this observation when going back up the graph.  When going down (the first loop), we visit car-pointed pairs that are not already marked.  If the car cell does not point to a pair or if it is already marked, then we visit the cdr-pointed pair instead until we run out of pairs to visit.  When going back up in the graph (the second loop) we check if the node is a car cell. If so, we should exit the second loop to descent back down (in the first loop) into the car's sibling cdr cell.  The graph traversal ends when we are back at the root at a cdr cell with an odd index.
 
@@ -642,6 +692,7 @@ No additional code changes are needed to the interpreter.  The `sweep` and `gc` 
 
 One small challenge arises when we recycle unused Lisp data.  Whenever we construct temporary data by calling the corresponding C functions `atom`, `string`, `cons` and `pair`, we do not want the data to be accidentily garbage collected.  The `cons` and `pair` C functions automatically protect its arguments while the temporary data is constructed, but not afterwards.  We must protect temporary data when invoking other functions that construct Lisp data, such as `eval` and `evlis`.  To protect temporary Lisp data we push it on the stack and pop it later:
 
+```c
     /* push x on the stack to protect it from being recycled, returns pointer to cell pair (e.g. to update the value) */
     L *push(L x) {
       cell[--sp] = x;                               /* we must save x on the stack so it won't get GC'ed */
@@ -652,23 +703,29 @@ One small challenge arises when we recycle unused Lisp data.  Whenever we constr
       }
       return &cell[sp];
     }
+```
 
 Since `push` returns a pointer to the protected value, we can update this stack cell by dereferencing the pointer.  This allows us to efficiently contruct lists without having the push every list value on the stack, as is illustrated by the example further below.  Later we pop the value from the stack:
 
+```c
     /* pop from the stack and return value */
     L pop() {
       return cell[sp++];
     }
+```
 
 In the REPL we can simply unwind the entire stack:
 
+```c
     /* unwind the stack up to position i, where i==N clears the stack */
     void unwind(I i) {
       sp = i;
     }
+```
 
 For example, the `let` special form extends the list of bindings pointed to by `e` with new pairs of bindings for locals:
 
+```c
     L f_let(L t, L *e) {
       L x, *p;
       for (p = push(*e); more(t); t = cdr(t))
@@ -677,6 +734,7 @@ For example, the `let` special form extends the list of bindings pointed to by `
       pop();
       return T(t) == NIL ? nil : car(t);
     }
+```
 
 Note that `push` protects the list of bindings pointed to by `p`.  The bindings `*e` passed to `f_let` are already protected by the interpreter, but the pairs we add to the front of the list using the `pair` function won't be protected when `eval` is called.  We create a protected cell on the stack pointed to by `p` and initialized to `*e` with `p = push(*e)`.  We later update stack cell `*p` to protect the new bindings added to the list.  While the arguments to `cons` and `pair` are automatically protected by these functions, this does not suffice to protect the list when `eval` is called and thus requires protecting `*p`.
 
@@ -684,10 +742,12 @@ Note that there is more going on here.  Because the `let` forms support tail-rec
 
 A `push` can also be used to protect new symbols and strings added the heap by the `atom` and `string` C functions, for example:
 
+```c
     L name = string("John Doe");
     push(name);
     ... do some work, including eval() ...
     pop();
+```
 
 The string contents may be moved around on the heap by the garbage collector.  `A+ord(name)` points to the current location of the \0-terminated string.  By contrast, the cons pair cells of lists are never moved by the garbage collector.
 
@@ -697,6 +757,7 @@ To help with debugging garbage collection and find memory management bugs, compi
 
 The following `dump` function displays the contents of the pool, e.g. when added to the REPL.  To avoid getting huge dumps, change `P` to a small number (e.g. 64, 128 or 256) and comment out some of the `prim[]` entries and remove the init.lisp input to make sure the important primitives and code you want to check fit in memory.
 
+```c
     void dump() {
       I i;
       for (i = 0; i < P; ++i) {
@@ -713,6 +774,7 @@ The following `dump` function displays the contents of the pool, e.g. when added
       }
       printf("\nenv=%u fp=%u hp=%u sp=%u\n", ord(env), fp, hp, sp);
     }
+```
 
 ## Embedding Lisp
 
@@ -720,25 +782,32 @@ Embedding a Lisp interpreter should be straightforward by renaming `main()` to `
 
 To parse and execute Lisp code stored in a string, set `ptr` to this string and set `see` to a space, then call `readlisp`, `eval` and perhaps `print` to show the return value:
 
+```c
     see = ' ';
     ptr = "(+ 1 2 3)";
     print(eval(*push(readlisp()), env));
+```
 
 Compiling with `HAVE_READLINE_H` is assumed to allow `ptr` to consume the given string.  If `readline` is not used, then change the `get()` function to remove the `readline` dependency and keep this part:
 
+```c
     if (see != '\n')
       if (!(see = *ptr++))
         see = '\n';
+```
 
 To clear the stack and garbage collect the heap:
 
+```c
     unwind(N); 
-    gc()
+    gc();
+```
 
 To expose C functions in Lisp, define wrapper functions and register them in the `prim[]` array.  Pointers can be stored as Lisp integers.  Arbitrary binary data can be stored in strings.
 
 Some examples to get you started:
 
+```c
     /* some kind of state data of a device */
     struct Data {
       enum { RED, GREEN } state;
@@ -821,17 +890,21 @@ Some examples to get you started:
       ...
       {0}
     };
+```
 
 The `num()` function does not throw an error in the default implementation, when the Lisp argument is non-numeric.  To throw an error change `num()` as follows:
 
+```c
     L num(L n) {
       return n == n ? n : err(5);
     }
+```
 
 ## Extending Lisp
 
 Extending Lisp with new primitives is not too challenging.  A new primitive is defined as a C function, say `f_count`:
 
+```c
     f_count(L t, L *e) {
       I k;
       for (k = 0; T(t) != NIL; t = cdr(t)) {
@@ -845,21 +918,25 @@ Extending Lisp with new primitives is not too challenging.  A new primitive is d
       }
       return k;
     }
+```
 
 Our function counts the number of characters in an atom or string argument, and counts the length of a list argument.  We keep counting over all arguments in the list `t` passed to the function, such that `(count 'abc)` gives 3, `(count '(1 2 3 4))` gives 4, and `(count '(1 2) '(3 4) '(5))` gives 5 for example.  Note that environment `*e` passed to `f_count` can be ignored.  Since our function `f_count` does not construct new atoms, strings, or lists, we don't need to `push` those to protect them from being garbage collected during other constructions or evaluations in our function.
 
 Then we add `f_count` to the `prim` array:
 
+```c
     } prim[] = {
       ...
       {"count",    f_count,   NORMAL},              /* sum count of argument lengths */
       {0}
     };
+```
 
 In the following example we have to `push` to protect a temporary string constructed from the function arguments, because we also call `alloc` to reserve memory that may trigger a garbage collection phase.
 
 Our new `f_slice` function takes a starting index, a length, followed by one or more arguments that from a string to slice from the given start up to the given length:
 
+```c
     L f_slice(L t, L *e) {
       int64_t m, n; L *x; I i, k, r;
       /* first argument is the start index m */
@@ -897,15 +974,18 @@ Our new `f_slice` function takes a starting index, a length, followed by one or 
       pop();
       return box(STRG, i);
     }
+```
 
 Then we also add `f_slice` to the `prim` array:
 
+```c
     } prim[] = {
       ...
       {"count",    f_count,   NORMAL},              /* sum count of argument lengths */
       {"slice",    f_slice,   NORMAL},              /* slice the stringified arguments */
       {0}
     };
+```
 
 For example, `(slice 0 3 'abcdef)` gives `"abc"`, `(slice -3 2 'abcdef)` gives `"de"`, `(slice 2 -4 "abcdef")` gives `"fedc"`, and `(slice 0 -99 123 456 789)` gives `"987654321"`.
 
