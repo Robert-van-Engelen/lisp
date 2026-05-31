@@ -359,19 +359,14 @@ exits Lisp.
 
 Additional Lisp functions and macros are defined in [init.lisp](src/init.lisp).
 
-```lisp
     (defun <symbol> <variables> <expr>)
-```
 
 defines a named function with variables and a function body.  A shorthand for `(define <symbol> (lambda <variables> <expr>))`.
 
-```lisp
     (defmacro <symbol> <variables> <expr>)
-```
 
 defines a named macro with variables and a body.  A shorthand for `(define <symbol> (macro <variables> <expr>))`.
 
-```lisp
     (null? x)
     (number? x)
     (symbol? x)
@@ -379,24 +374,18 @@ defines a named macro with variables and a body.  A shorthand for `(define <symb
     (pair? x)
     (atom? x)
     (list? x)
-```
 
 returns `#t` if `x` is of a specific type or structure.
 
-```lisp
     (equal? x y)
-```
 
 returns `#t` if values `x` and `y` are identical or structurally equal.
 
-```lisp
     (seq n1 n2)
     (range n1 n2 [n3])
-```
 
 returns a list of numbers `n1` up to but excluding `n2`, with an optional step `n3` when specified.
 
-```lisp
     (length t)
     (append t1 t2)
     (reverse t)
@@ -411,19 +400,14 @@ returns a list of numbers `n1` up to but excluding `n2`, with an optional step `
     (mapcar f t)
     (map f t1 t2 ... tn)
     (zip t1 t2 ... tn)
-```
 
 which are the common non-destructive list operations on lists `t` with functions `f` and values `x`.
 
-```lisp
     (Y f)
-```
 
 is the fixed-point [Y combinator](https://en.wikipedia.org/wiki/Fixed-point_combinator#Fixed-point_combinators_in_lambda_calculus).
 
-```lisp
     (reveal f)
-```
 
 reveals the contents of `f` by displaying the `lambda` of a closure `f` and the body of a `macro` `f`.
 
@@ -745,7 +729,7 @@ A `push` can also be used to protect new symbols and strings added the heap by t
 ```c
     L name = string("John Doe");
     push(name);
-    ... do some work, including eval() ...
+    ... /* do some work, including eval() */ ...
     pop();
 ```
 
@@ -1019,9 +1003,7 @@ Adding a special form `(write-to "results.txt" (run stuff))` to write all output
 
 For example:
 
-```lisp
     (load "nqueens.lisp")
     (write-to "nqueens.log" (solve board))
-```
 
 But don't use `-DDEBUG` to compile the interpreter which makes solving the 8-queens problem very slow.
