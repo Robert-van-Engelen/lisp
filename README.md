@@ -846,7 +846,7 @@ Extending Lisp with new primitives is not too challenging.  A new primitive is d
       return k;
     }
 
-Our function counts the number of characters in an atom or string argument, and counts the length of a list argument.  We keep counting over all arguments in the list `t` passed to the function, such that `(count 'abc)` gives 3, `(count '(1 2 3 4))` gives 4, and `(count '(1 2) '(3 4) '(5))` gives 5 for example.  Note that environment `*e` passed to `f_count` can be ignored.  Since our function `f_count` does not construct new atoms, strings, or lists, we don't need to use `push` those to protect them from being garbage collected during other constructions or evaluations in our function.
+Our function counts the number of characters in an atom or string argument, and counts the length of a list argument.  We keep counting over all arguments in the list `t` passed to the function, such that `(count 'abc)` gives 3, `(count '(1 2 3 4))` gives 4, and `(count '(1 2) '(3 4) '(5))` gives 5 for example.  Note that environment `*e` passed to `f_count` can be ignored.  Since our function `f_count` does not construct new atoms, strings, or lists, we don't need to `push` those to protect them from being garbage collected during other constructions or evaluations in our function.
 
 Then we add `f_count` to the `prim` array:
 
@@ -856,7 +856,7 @@ Then we add `f_count` to the `prim` array:
       {0}
     };
 
-In the following example we have to use `push` to protect a temporary string constructed from the function arguments, because we also call `alloc` to reserve memory that may trigger a garbage collection phase.
+In the following example we have to `push` to protect a temporary string constructed from the function arguments, because we also call `alloc` to reserve memory that may trigger a garbage collection phase.
 
 Our new `f_slice` function takes a starting index, a length, followed by one or more arguments that from a string to slice from the given start up to the given length:
 
@@ -886,6 +886,7 @@ Our new `f_slice` function takes a starting index, a length, followed by one or 
         n = -n;
       if (m+n > k)
         n = k-m;
+      /* alloc n bytes (0-terminated) to store the slice at address A+i */
       i = alloc(n);
       if (r)
         while (n--)
@@ -897,7 +898,7 @@ Our new `f_slice` function takes a starting index, a length, followed by one or 
       return box(STRG, i);
     }
 
-Then we add `f_slice` to the `prim` array:
+Then we also add `f_slice` to the `prim` array:
 
     } prim[] = {
       ...
@@ -906,7 +907,7 @@ Then we add `f_slice` to the `prim` array:
       {0}
     };
 
-For example, `(slice 0 3 'abcdef) gives `"abc"`, `(slice -3 2 'abcdef)` gives `"de"`, `(slice 2 -4 "abcdef")` gives `"fedc"`, and `(slice 0 -99 123 456 789)` gives `"987654321"`.
+For example, `(slice 0 3 'abcdef)` gives `"abc"`, `(slice -3 2 'abcdef)` gives `"de"`, `(slice 2 -4 "abcdef")` gives `"fedc"`, and `(slice 0 -99 123 456 789)` gives `"987654321"`.
 
 To test whether your new functions are robust aginst interfering garbage collections, compile the source code with `-DDEBUG` to force GC for every cell allocation performed by the interpreter.  This slows the interpreter down significantly, but you will quickly notice when GC destroyed a new atom, string or list that wasn't protected with a `push`.  Don't forget to release each `push` with `pop` when the function returns.
 
