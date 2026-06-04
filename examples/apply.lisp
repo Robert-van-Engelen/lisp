@@ -1,7 +1,13 @@
 ; (apply <func> <expr1> <expr2> ... <list>) -- applies <func> to <expr> and <list> as its arguments
 ; Requires init.lisp
-; This is a redundant function because in most cases the dot operator can be used to accomplish the same
-; The '_ symbol is used as a temporary let* variable in the constructed macro code to avoid name clashes
+; Whereas other Lisp require an apply function, our Lisp does not, but we
+; provide one here as a macro.
+;
+; The dot operator accomplishes the same as the apply function when combined
+; with a let* to bind the list to the variable after the dot, which this macro
+; constructs.  In the macro body we use the '_ symbol as a temporary let*
+; variable to avoid potential clashes with names in the macro arguments.
+;
 ; For example: (apply + 0 1 (list 2 3)) => (let* (_ (list 3 4)) (+ 0 1 . _))
 
 (defmacro apply fargs

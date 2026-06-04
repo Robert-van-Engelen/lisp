@@ -26,7 +26,7 @@
                     (cons l (cons (car t) g))))
             (cons () ()))))
 
-; this version uses destructive assignments
+; this version uses destructive assignments and a loop to partition the list
 (define quick
     (lambda (t)
         (if t
@@ -42,4 +42,26 @@
                         (if (< (car t) x)
                             (setq l (cons (car t) l))
                             (setq g (cons (car t) g))))
-                    (append (quick l) (cons x (quick g))))))))
+                    (append (quick l) (cons x (quick g)))))
+            ()
+            )))
+
+; same, but tail-recursive version without list append
+(define quicker-tr
+    (lambda (t s)
+        (if t
+            (let*
+                ; pivot x
+                (x (car t))
+                ; less-than-pivot x accumulated in the while loop
+                (l ())
+                ; greater-or-equal-to-pivot x accumulated in the while loop
+                (g ())
+                (begin
+                    (while (setq t (cdr t))
+                        (if (< (car t) x)
+                            (setq l (cons (car t) l))
+                            (setq g (cons (car t) g))))
+                    (quicker-tr l (cons x (quicker-tr g s)))))
+            s)))
+(define quicker (lambda (t) (quicker-tr t ())))
