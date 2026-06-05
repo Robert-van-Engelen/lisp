@@ -1,4 +1,4 @@
-(load "../src/init.lisp")
+(load "init.lisp")
 
 ; error routine
 (define report (lambda (what) (begin (write "FAILED " what "\n") (quit))))
@@ -34,8 +34,8 @@
 (if (eq? (length ()) 0) 'OK (report 'length))
 (if (eq? (length '(1 2)) 2) 'OK (report 'length))
 (if (equal? (append '(1 2) '(3 4)) '(1 2 3 4)) 'OK (report 'append))
-(if (equal? (nthcdr '(1 2 3 4) 2) '(3 4)) 'OK (report 'nthcdr))
-(if (equal? (nth '(1 2 3 4) 2) 3) 'OK (report 'nth))
+(if (equal? (nthcdr 2 '(1 2 3 4)) '(3 4)) 'OK (report 'nthcdr))
+(if (equal? (nth 2 '(1 2 3 4)) 3) 'OK (report 'nth))
 (if (equal? (reverse '(1 2 3 4)) '(4 3 2 1)) 'OK (report 'reverse))
 (if (equal? (member 3 '(1 2 3 4)) '(3 4)) 'OK (report 'member))
 (if (eq? (foldr - 0 '(1 2 3 4)) -2) 'OK (report 'foldr))
@@ -56,28 +56,28 @@
 (if (eq? ((compose car cdr) '(1 2)) 2) 'OK (report 'compose))
 (if (eq? ((Y (lambda (f) (lambda (k) (if (< 1 k) (* k (f (- k 1))) 1)))) 5) 120) 'OK (report 'Y))
 
-(load "../examples/case.lisp")
+(load "case.lisp")
 
 (if (eq? (case 2 (1 'a) (2 'b) (3 'c)) 'b) 'OK (report 'case))
 
-(load "../examples/dolist.lisp")
+(load "dolist.lisp")
 
 (define sum 0)
 (dolist (x (seq 1 4)) (setq sum (+ sum x)))
 (if (eq? sum 6) 'OK (report 'dolist))
 
-(load "../examples/when.lisp")
+(load "when.lisp")
 
 (if (eq? (when (< 0 0) 1 2) ()) 'OK (report 'when))
 (if (eq? (when (< 0 1) 1 2) 2) 'OK (report 'when))
 
-(load "../examples/unless.lisp")
+(load "unless.lisp")
 
 (if (eq? (unless (< 0 0) 1 2) 2) 'OK (report 'unless))
 (if (eq? (unless (< 0 1) 1 2) ()) 'OK (report 'unless))
 
 (write "Running nqueens test, this can take a long time with DEBUG...\n")
-(load "../examples/nqueens.lisp")
+(load "nqueens.lisp")
 
 (write "SUCCESS\n")
 (quit)

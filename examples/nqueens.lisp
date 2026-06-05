@@ -24,15 +24,15 @@
 
 (define at
     (lambda (board x y)
-        (nth (nth board x) y)))
+        (nth y (nth x board))))
 
 (define queen!
     (lambda (board x y)
-        (set-car! (nthcdr (nth board x) y) '@)))
+        (set-car! (nthcdr y (nth x board x)) '@)))
 
 (define clear!
     (lambda (board x y)
-        (set-car! (nthcdr (nth board x) y) '-)))
+        (set-car! (nthcdr y (nth x board x)) '-)))
 
 (define queen?
     (lambda (board x y)
@@ -49,18 +49,17 @@
     (lambda (board x y)
         (any?
             (lambda (n)
-	        (or ; check if there's no conflicting queen up
-	            (queen? board n y)
+                (or ; check if there's no conflicting queen up
+                    (queen? board n y)
                     ; check upper left
                     (let*
                         (z (+ y (- n x)))
-                        (if
-                            (not (< z 0))
+                        (if (not (< z 0))
                             (queen? board n z)))
                     ; check upper right
-                    (let* (z (+ y (- x n)))
-                        (if
-                            (< z board-size)
+                    (let*
+                        (z (+ y (- x n)))
+                        (if (< z board-size)
                             (queen? board n z)))))
             (seq 0 x))))
 
@@ -70,11 +69,11 @@
             ; show solution
             (begin
                 (show board)
-	        (write "\n"))
+                (write "\n"))
             ; continue searching for solutions
             (mapcar
-	        (lambda (y)
-		     (if (not (conflict? board x y))
+                (lambda (y)
+                     (if (not (conflict? board x y))
                          (begin
                              (queen! board x y)
                              (solve-n board (+ x 1))
