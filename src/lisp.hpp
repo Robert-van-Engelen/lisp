@@ -412,9 +412,9 @@ void prompt(const char *s) {
 
 protected:
 
-/* the file(s) we are reading or fin=0 when reading from the terminal */
+/* the file(s) we are reading from or fin=0 when reading from the terminal, file we are writing to (default stdout) */
 I fin;
-FILE *in[10];
+FILE *in[10], *out;
 
 /* tokenization buffer and the next character that we see */
 char buf[256], see;
@@ -508,7 +508,7 @@ L list() {
     if (*buf == '.' && !buf[1]) {               /* parse list with dot pair ( <expr> ... <expr> . <expr> ) */
       *p = read();                              /* read expression to replace the last nil at the end of the list */
       if (scan() != ')')
-        ERR(8, "expecing ) ");
+        ERR(8, "expecting ) ");
       break;
     }
     *p = cons(parse(), nil);                    /* add parsed expression to end of the list by replacing the last nil */
@@ -522,6 +522,12 @@ L tick() {
   L *p;
   if (*buf == ',')
     return read();                              /* parse and return Lisp expression */
+  if (*buf == '\'') {
+    scan();
+    p = push(cons(tick(), nil));
+    *p = cons(cons(atom("quote"), cons(atom("quote"), nil)), *p);
+    return cons(atom("list"), pop());           /* translated '<expr> to (quote <expr>) in tick'ed form */
+  }
   if (*buf != '(')
     return cons(atom("quote"), cons(parse(), nil)); /* parse expression and return (quote <expr>) */
   p = push(cons(atom("list"), nil));
@@ -531,7 +537,7 @@ L tick() {
       p = &CDR(CDR(*push(cons(atom("append"), cons(pop(), nil)))));
       *p = cons(tick(), nil);                   /* `(x . xs) => (append (list (quote x)) (quote xs)) */
       if (scan() != ')')
-        ERR(8, "expecing ) ");
+        ERR(8, "expecting ) ");
       break;
     }
     p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
@@ -849,9 +855,6 @@ struct QUIT { };
 L f_quit(L t, L *_) {
   throw QUIT();
 }
-
-/* the file we are writing to, stdout by default */
-FILE *out;
 
 protected:
 

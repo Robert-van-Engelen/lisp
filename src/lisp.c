@@ -13,7 +13,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>             /* int64_t, uint64_t, uint32_t (or we can use e.g. unsigned long long instead) */
+#include <stdint.h>
 #include <string.h>
 #include <setjmp.h>
 
@@ -79,19 +79,16 @@ I ord(L x)      { return *(uint64_t*)&x; }              /* narrow return to 32 b
 L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
 I equ(L x, L y) { return *(uint64_t*)&x == *(uint64_t*)&y; }
 
-/* the file(s) we are reading from or fin=0 when reading from the terminal */
-I fin = 0;
-FILE *in[10];
+/*----------------------------------------------------------------------------*\
+ |      I/O BUFFERS AND ERROR MESSAGES                                         |
+\*----------------------------------------------------------------------------*/
 
-/* the file we are writing to, stdout by default */
-FILE *out;
+/* the file(s) we are reading from or fin=0 when reading from the terminal, file we are writing to (default stdout) */
+I fin = 0;
+FILE *in[10], *out;
 
 /* tokenization buffer, the next character we're looking at, readline pointer and line, prompt string */
 char buf[256], see = '\n', *ptr = "", *line = NULL, ps[20];
-
-/*----------------------------------------------------------------------------*\
- |      ERROR HANDLING AND ERROR MESSAGES                                     |
-\*----------------------------------------------------------------------------*/
 
 /* setjmp-longjmp jump buffer */
 jmp_buf jb;
@@ -235,9 +232,7 @@ L pop() {
 }
 
 /* unwind the stack up to position i, where i=N clears the stack */
-void unwind(I i) {
-  sp = i;
-}
+void unwind(I i) { sp = i; }
 
 /*----------------------------------------------------------------------------*\
  |      LISP EXPRESSION CONSTRUCTION AND INSPECTION                           |
@@ -436,7 +431,7 @@ L list() {
     if (*buf == '.' && !buf[1]) {               /* parse list with dot pair ( <expr> ... <expr> . <expr> ) */
       *p = readlisp();                          /* read expression to replace the last nil at the end of the list */
       if (scan() != ')')
-        ERR(8, "expecing ) ");
+        ERR(8, "expecting ) ");
       break;
     }
     *p = cons(parse(), nil);                    /* add parsed expression to end of the list by replacing the last nil */
@@ -450,6 +445,12 @@ L tick() {
   L *p;
   if (*buf == ',')
     return readlisp();                          /* parse and return Lisp expression */
+  if (*buf == '\'') {
+    scan();
+    p = push(cons(tick(), nil));
+    *p = cons(cons(atom("quote"), cons(atom("quote"), nil)), *p);
+    return cons(atom("list"), pop());           /* translated '<expr> to (quote <expr>) in tick'ed form */
+  }
   if (*buf != '(')
     return cons(atom("quote"), cons(parse(), nil)); /* parse expression and return (quote <expr>) */
   p = push(cons(atom("list"), nil));
@@ -459,7 +460,7 @@ L tick() {
       p = &CDR(CDR(*push(cons(atom("append"), cons(pop(), nil)))));
       *p = cons(tick(), nil);                   /* `(x . xs) => (append (list (quote x)) (quote xs)) */
       if (scan() != ')')
-        ERR(8, "expecing ) ");
+        ERR(8, "expecting ) ");
       break;
     }
     p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
