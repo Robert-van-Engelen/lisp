@@ -1,4 +1,4 @@
-; magic squares for tinylisp-extras and tinylisp-extras-gc
+; magic squares
 
 (define make-list
     (lambda (n x)
