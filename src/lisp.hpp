@@ -526,13 +526,15 @@ L tick() {
     return cons(atom("quote"), cons(parse(), nil)); /* parse expression and return (quote <expr>) */
   p = push(cons(atom("list"), nil));
   while (scan() != ')') {
-    p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
     if (*buf == '.' && !buf[1]) {               /* tick list with dot pair ( <expr> ... <expr> . <expr> ) */
-      *p = read();                              /* read expression to replace the last nil at the end of the list */
+      scan();
+      p = &CDR(CDR(*push(cons(atom("append"), cons(pop(), nil)))));
+      *p = cons(tick(), nil);                   /* `(x . xs) => (append (list (quote x)) (quote xs)) */
       if (scan() != ')')
         ERR(8, "expecing ) ");
       break;
     }
+    p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
     *p = cons(tick(), nil);                     /* add ticked expression to end of the list by replacing the last nil */
   }
   return pop();                                 /* return (list <expr> ... <expr>) */
