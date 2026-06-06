@@ -918,7 +918,7 @@ Then we add `f_count` to the `prim` array:
 
 In the following example we have to `push` to protect a temporary string constructed from the function arguments, because we also call `alloc` to reserve memory that may trigger a garbage collection phase.
 
-Our new `f_slice` function takes a starting index, a length, followed by one or more arguments that from a string to slice from the given start up to the given length:
+Our new `f_slice` function takes a starting index, a length, followed by one or more arguments that form a string to slice from the given start up to the given length:
 
 ```c
     L f_slice(L t, L *e) {
@@ -973,9 +973,9 @@ Then we also add `f_slice` to the `prim` array:
 
 For example, `(slice 0 3 'abcdef)` gives `"abc"`, `(slice -3 2 'abcdef)` gives `"de"`, `(slice 2 -4 "abcdef")` gives `"fedc"`, and `(slice 0 -99 123 456 789)` gives `"987654321"`.
 
-To test whether your new functions are robust aginst interfering garbage collections, compile the source code with `-DDEBUG` to force GC for every cell allocation performed by the interpreter.  This slows the interpreter down significantly, but you will quickly notice when GC destroyed a new atom, string or list that wasn't protected with a `push`.  Don't forget to release each `push` with `pop` when the function returns.
+To test whether your new functions are robust against interfering garbage collections, compile the source code with `-DDEBUG` to force GC for every cell allocation performed by the interpreter.  This slows the interpreter down significantly, but you will quickly notice when GC destroyed a new atom, string or list that wasn't protected with a `push`.  Don't forget to release each `push` with `pop` when the function returns.
 
-Adding a special form `(write-to "results.txt" (run stuff))` to write all output of `(run stuff)` that it produces with `(print ...)`, `(println ...)` and `(write ...)` to a file `results.txt`:
+Let's add a new special form `(write-to "results.txt" (run stuff))` to write all output of `(run stuff)` that it produces with `(print ...)`, `(println ...)` and `(write ...)` to a file `results.txt`:
 
 ```c
     L f_writeto(L t, L *e) {
@@ -1006,4 +1006,4 @@ For example:
     (load "nqueens.lisp")
     (write-to "nqueens.log" (solve board))
 
-But don't use `-DDEBUG` to compile the interpreter which makes solving the 8-queens problem very slow.
+But don't use `-DDEBUG` for the above to compile the interpreter, which makes solving the 8-queens problem very slow.
