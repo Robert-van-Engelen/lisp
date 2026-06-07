@@ -165,7 +165,7 @@ evaluates a quoted expression and returns its value.  For example, `(eval '(+ 1 
 
     `<expr>
 
-backquotes `<expr>`, which quotes `<expr>`, but evaluates all `,<expr>` subexpression therein before quoting i.e. unquotes.  For example, `(let* (b 1) (c 3) (d '(4 5)) \`(a ,b ',c . ,d))` returns the list `(a 1 (quote 3) 4 5)`.
+backquotes `<expr>`, which quotes `<expr>`, but evaluates all `,<expr>` subexpression therein before quoting i.e. unquotes.  For example, `(let* (b 1) (c 3) (d '(4 5)) ``(a ,b ',c . ,d))` returns the list `(a 1 (quote 3) 4 5)`.
 
 Nested backquoting is not supported.  The `,@` splice operator is not supported, but tail-splicing a list using the dot operator is possible as shown in the example.
 
