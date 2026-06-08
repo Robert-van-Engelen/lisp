@@ -998,9 +998,24 @@ Let's add a new special form `(write-to "results.txt" (run stuff))` to write all
 ```c
     } prim[] = {
       ...
-      {"write-to", f_writeto, SPECIAL},             /* send output of expressions to a file */
+      {"write-to", f_writeto, SPECIAL},           /* send output of expressions to a file */
       {0}
     };
+```
+
+In the REPL in `main()` we must make sure to close `out` before resetting it to `stdout`:
+
+```c
+    while (1) {                                   /* read-evel-print loop */
+      putchar('\n');
+      unwind(N);
+      i = gc();
+      snprintf(ps, sizeof(ps), "%u+%u>", i, sp-hp/8);
+      if (out && out != stdout)
+        fclose(out);
+      out = stdout;
+      print(eval(*push(readlisp()), env));
+    }
 ```
 
 For example:
