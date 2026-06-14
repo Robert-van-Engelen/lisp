@@ -806,18 +806,18 @@ L f_string(L t, L *_) {
     else if (T(x) == CONS)
       for (; T(x) == CONS; x = CDR(x))
         ++i;
-    else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
+    else if (x == x)                            /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(buf, sizeof(buf), FLOAT, x);
   }
   i = j = alloc(i);
   for (s = t; T(s) != NIL; s = cdr(s)) {
     L x = car(s);
-    if ((T(x) & ~(ATOM^STRG)) == ATOM)
-    { I k = strlen(A+ord(x)); memcpy(A+i, A+ord(x), k); i += k; } /* ugly way to do i += strlen(strcpy(A+i, A+ord(x))) */
+    if ((T(x) & ~(ATOM^STRG)) == ATOM && i > 0) /* useless i > 0 guard to appease g++ -Wall */
+      i += strlen(strcpy(A+i, A+ord(x)));
     else if (T(x) == CONS)
       for (; T(x) == CONS; x = CDR(x))
         *(A+i++) = CAR(x);
-    else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
+    else if (x == x)                            /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(A+i, sizeof(buf), FLOAT, x);
   }
   return box(STRG, j);

@@ -729,7 +729,7 @@ L f_string(L t, L *_) {
     else if (T(x) == CONS)
       for (; T(x) == CONS; x = CDR(x))
         ++i;
-    else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
+    else if (x == x)                            /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(buf, sizeof(buf), FLOAT, x);
   }
   i = j = alloc(i);
@@ -740,7 +740,7 @@ L f_string(L t, L *_) {
     else if (T(x) == CONS)
       for (; T(x) == CONS; x = CDR(x))
         *(A+i++) = CAR(x);
-    else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
+    else if (x == x)                            /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(A+i, sizeof(buf), FLOAT, x);
   }
   return box(STRG, j);
