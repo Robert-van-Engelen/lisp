@@ -72,11 +72,11 @@ enum { PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe
    ord(x):   returns the ordinal of the NaN-boxed double x
    num(n):   convert or check number n (does nothing, e.g. could check for NaN)
    equ(x,y): returns nonzero if x equals y */
-I T(L x) { union { L x; uint64_t i; } u = {x}; return u.i>>48; }
-L box(I t,I i) { union { uint64_t i; L x; } u = {(uint64_t)t<<48|i}; return u.x; }
-I ord(L x) { union { L x; uint64_t i; } u = {x}; return u.i; }          /* narrow return to 32 bit to remove the tag */
-L num(L n) { return n; }                                /* could check for a valid number return n == n ? n : err(5); */
-I equ(L x,L y) { union { L x; uint64_t i; } u = {x},v = {y}; return u.i == v.i; }
+I T(L x)        { union { L x; uint64_t i; } u = {x}; return u.i >> 48; }
+L box(I t, I i) { union { uint64_t i; L x; } u = {(uint64_t)t << 48 | i}; return u.x; }
+I ord(L x)      { union { L x; uint64_t i; } u = {x}; return u.i; }     /* narrow return to 32 bit to remove the tag */
+L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
+I equ(L x, L y) { union { L x; uint64_t i; } u = {x}, v = {y}; return u.i == v.i; }
 
 /*----------------------------------------------------------------------------*\
  |      I/O BUFFERS AND ERROR MESSAGES                                         |
