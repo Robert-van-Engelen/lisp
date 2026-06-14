@@ -32,9 +32,6 @@ inline void using_history() { }
 #define ALWAYS_GC 0
 #endif
 
-/* T(x) returns the tag bits of a NaN-boxed Lisp expression x */
-#define T(x) (*(uint64_t*)&x >> 48)
-
 /* Lisp class<P,S> parameterized with pool size P and stack/heap size S */
 template<uint32_t P,uint32_t S> class Lisp {
 
@@ -46,7 +43,7 @@ public:
 
 typedef Lisp<P,S> This;
 
-Lisp<P,S>() {
+Lisp() {
   A = reinterpret_cast<char*>(cell);
   fp = 0;                                       /* free pointer */
   hp = H;                                       /* heap pointer */
@@ -68,7 +65,7 @@ Lisp<P,S>() {
   break_on();                                   /* enable interrupt if compiled with -DHAVE_SIGINT_H */
 }
 
-~Lisp<P,S>() {
+~Lisp() {
   break_default();                              /* reinstate CTRL-C default if compiled with -DHAVE_SIGINT_H */
   closein();                                    /* close all open input files */
 }
@@ -95,14 +92,16 @@ protected:
 /* primitive, atom, string, cons, closure, macro and nil tags for NaN boxing (reserve 0x7ff8 for nan) */
 enum { PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe, MACR = 0x7fff, NIL = 0xffff };
 
-/* box(t,i): returns a new NaN-boxed double with tag t and ordinal i
+/* T(x):     returns the tag bits of a NaN-boxed double x
+   box(t,i): returns a new NaN-boxed double with tag t and ordinal i
    ord(x):   returns the ordinal of the NaN-boxed double x
    num(n):   convert or check number n (does nothing, e.g. could check for NaN)
    equ(x,y): returns nonzero if x equals y */
-static L box(I t, I i) { L x; *(uint64_t*)&x = (uint64_t)t << 48 | i; return x; }
-static I ord(L x)      { return *(uint64_t*)&x; }       /* narrow return to 32 bit to remove the tag */
+static I T(L x)        { union { L x; uint64_t i; } u = {x}; return u.i >> 48; }
+static L box(I t, I i) { union { uint64_t i; L x; } u = {(uint64_t)t << 48 | i}; return u.x; }
+static I ord(L x)      { union { L x; uint64_t i; } u = {x}; return u.i; } /* narrow return to 32 bit to remove the tag */
 static L num(L n)      { return n; }                    /* could check for a valid number return n == n ? n : err(5); */
-static I equ(L x, L y) { return *(uint64_t*)&x == *(uint64_t*)&y; }
+static I equ(L x, L y) { union { L x; uint64_t i; } u = {x}, v = {y}; return u.i == v.i; }
 
 /*----------------------------------------------------------------------------*\
  |      ERROR HANDLING AND ERROR MESSAGES                                     |
@@ -637,7 +636,7 @@ L f_lt(L t, L *_) {
   L x = car(t), y = car(cdr(t));
   return (T(x) == T(y) && (T(x) & ~(ATOM^STRG)) == ATOM ? strcmp(A+ord(x), A+ord(y)) < 0 :
       x == x && y == y ? x < y : /* x == x is false when x is NaN i.e. a tagged Lisp expression */
-      *(int64_t*)&x < *(int64_t*)&y) ? tru : nil;
+      T(x) < T(y) || (T(x) == T(y) && ord(x) < ord(y))) ? tru : nil;
 }
 
 L f_eq(L t, L *_) {
@@ -814,7 +813,7 @@ L f_string(L t, L *_) {
   for (s = t; T(s) != NIL; s = cdr(s)) {
     L x = car(s);
     if ((T(x) & ~(ATOM^STRG)) == ATOM)
-      i += strlen(strcpy(A+i, A+ord(x)));
+    { I k = strlen(A+ord(x)); memcpy(A+i, A+ord(x), k); i += k; } /* ugly way to do i += strlen(strcpy(A+i, A+ord(x))) */
     else if (T(x) == CONS)
       for (; T(x) == CONS; x = CDR(x))
         *(A+i++) = CAR(x);
