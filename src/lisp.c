@@ -64,20 +64,19 @@ void using_history() { }
 #define I uint32_t
 #define L double
 
-/* T(x) returns the tag bits of a NaN-boxed Lisp expression x */
-#define T(x) (*(uint64_t*)&x >> 48)
-
 /* primitive, atom, string, cons, closure, macro and nil tags for NaN boxing (reserve 0x7ff8 for nan) */
 enum { PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe, MACR = 0x7fff, NIL = 0xffff };
 
-/* box(t,i): returns a new NaN-boxed double with tag t and ordinal i
+/* T(x):     returns the tag bits of a NaN-boxed double x
+   box(t,i): returns a new NaN-boxed double with tag t and ordinal i
    ord(x):   returns the ordinal of the NaN-boxed double x
    num(n):   convert or check number n (does nothing, e.g. could check for NaN)
    equ(x,y): returns nonzero if x equals y */
-L box(I t, I i) { L x; *(uint64_t*)&x = (uint64_t)t << 48 | i; return x; }
-I ord(L x)      { return *(uint64_t*)&x; }              /* narrow return to 32 bit to remove the tag */
-L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
-I equ(L x, L y) { return *(uint64_t*)&x == *(uint64_t*)&y; }
+I T(L x) { union { L x; uint64_t i; } u = {x}; return u.i>>48; }
+L box(I t,I i) { union { uint64_t i; L x; } u = {(uint64_t)t<<48|i}; return u.x; }
+I ord(L x) { union { L x; uint64_t i; } u = {x}; return u.i; }          /* narrow return to 32 bit to remove the tag */
+L num(L n) { return n; }                                /* could check for a valid number return n == n ? n : err(5); */
+I equ(L x,L y) { union { L x; uint64_t i; } u = {x},v = {y}; return u.i == v.i; }
 
 /*----------------------------------------------------------------------------*\
  |      I/O BUFFERS AND ERROR MESSAGES                                         |
@@ -559,7 +558,7 @@ L f_lt(L t, L *_) {
   L x = car(t), y = car(cdr(t));
   return (T(x) == T(y) && (T(x) & ~(ATOM^STRG)) == ATOM ? strcmp(A+ord(x), A+ord(y)) < 0 :
       x == x && y == y ? x < y : /* x == x is false when x is NaN i.e. a tagged Lisp expression */
-      *(int64_t*)&x < *(int64_t*)&y) ? tru : nil;
+      T(x) < T(y) || (T(x) == T(y) && ord(x) < ord(y))) ? tru : nil;
 }
 
 L f_eq(L t, L *_) {

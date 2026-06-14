@@ -165,7 +165,7 @@ evaluates a quoted expression and returns its value.  For example, `(eval '(+ 1 
 
     `<expr>
 
-backquotes `<expr>`, which quotes `<expr>`, but evaluates all `,<expr>` subexpression therein before quoting i.e. unquotes.  For example, ``(let* (b 1) (c 3) (d '(4 5)) `(a ,b ',c . ,d))`` returns the list `(a 1 (quote 3) 4 5)`.
+backquotes `<expr>`, which quotes `<expr>`, but evaluates all `,<expr>` subexpression therein before quoting, i.e. the comma unquotes.  For example, ``(let* (b 1) (c 3) (d '(4 5)) `(a ,b ',c . ,d))`` returns the list `(a 1 (quote 3) 4 5)`.
 
 Nested backquoting is not supported.  The `,@` splice operator is not supported, but tail-splicing a list using the dot operator is possible as shown in the example.
 
@@ -981,16 +981,21 @@ Let's add a new special form `(write-to "results.txt" (run stuff))` to write all
 
 ```c
     L f_writeto(L t, L *e) {
-      FILE *fp = out;
+      FILE *savedout = out;
       L x = eval(car(t), *e);
-      t = cdr(t);
       out = fopen(A+ord(x), "w");
       if (out) {
-        for (; T(t) == CONS; t = cdr(t))
-          x = eval(car(t), *e);
+        I i;
+        jmp_buf savedjb;
+        memcpy(savedjb,jb,sizeof(jb));
+        if ((i = setjmp(jb)) == 0)
+          for (t = cdr(t); T(t) == CONS; t = cdr(t))
+            x = eval(car(t), *e);
         fclose(out);
+        memcpy(jb,savedjb,sizeof(jb));
+        if (i) err(i);
       }
-      out = fp;
+      out = savedout;
       return x;
     }
 ```
@@ -1002,6 +1007,8 @@ Let's add a new special form `(write-to "results.txt" (run stuff))` to write all
       {0}
     };
 ```
+
+Note that errors must be caught, so that we can close the file, then throw the error again.
 
 In the REPL in `main()` we must make sure to close `out` before resetting it to `stdout`:
 
