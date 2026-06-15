@@ -13,13 +13,13 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>             /* uint32_t */
+#include <stdint.h>
 #include <string.h>
 #include <setjmp.h>
 
 #ifdef HAVE_SIGNAL_H
 #include <signal.h>             /* to catch CTRL-C and continue the REPL */
-#define BREAK_ON  signal(SIGINT, (void(*)(int))err)
+#define BREAK_ON  signal(SIGINT, (void(*)(int))err)     /* this cast is safe! */
 #define BREAK_OFF signal(SIGINT, SIG_IGN)
 #else
 #define BREAK_ON  (void)0
@@ -64,34 +64,30 @@ void using_history() { }
 #define I uint32_t      /* uint32_t for 20 bits ord() or uint16_t for 16 bit ord() */
 #define L float
 
-/* T(x) returns the tag bits of a NaN-boxed Lisp expression x */
-#define T(x) (*(uint32_t*)&x >> 20)
-
 /* primitive, atom, string, cons, closure, macro and nil tags for NaN boxing (reserve 0x7f8 for nan) */
 enum { PRIM = 0x7f9, ATOM = 0x7fa, STRG = 0x7fb, CONS = 0x7fc, CLOS = 0x7fe, MACR = 0x7ff, NIL = 0xfff };
 
-/* box(t,i): returns a new NaN-boxed float with tag t and 20 bits ordinal i
+/* T(x):     returns the tag bits of a NaN-boxed float x
+   box(t,i): returns a new NaN-boxed float with tag t and 20 bits ordinal i
    ord(x):   returns the 20 bits ordinal of the NaN-boxed float x
    num(n):   convert or check number n (does nothing, e.g. could check for NaN)
    equ(x,y): returns nonzero if x equals y */
-L box(I t, I i) { L x; *(uint32_t*)&x = (uint32_t)t << 20 | i; return x; }
-I ord(L x)      { return *(uint32_t*)&x & 0xfffff; }    /* remove the tag */
+I T(L x)        { union { L x; uint32_t i; } u = {x}; return u.i >> 20; }
+L box(I t, I i) { union { uint32_t i; L x; } u = {(uint32_t)t << 20 | i}; return u.x; }
+I ord(L x)      { union { L x; uint32_t i; } u = {x}; return u.i & 0xfffff; }   /* remove the tag */
 L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
-I equ(L x, L y) { return *(uint32_t*)&x == *(uint32_t*)&y; }
+I equ(L x, L y) { union { L x; uint32_t i; } u = {x}, v = {y}; return u.i == v.i; }
 
-/* the file(s) we are reading from or fin=0 when reading from the terminal */
+/*----------------------------------------------------------------------------*\
+ |      I/O BUFFERS AND ERROR MESSAGES                                         |
+\*----------------------------------------------------------------------------*/
+
+/* the file(s) we are reading from or fin=0 when reading from the terminal, file we are writing to (default stdout) */
 I fin = 0;
-FILE *in[10];
-
-/* the file we are writing to, stdout by default */
-FILE *out;
+FILE *in[10], *out;
 
 /* tokenization buffer, the next character we're looking at, readline pointer and line, prompt string */
 char buf[256], see = '\n', *ptr = "", *line = NULL, ps[20];
-
-/*----------------------------------------------------------------------------*\
- |      ERROR HANDLING AND ERROR MESSAGES                                     |
-\*----------------------------------------------------------------------------*/
 
 /* setjmp-longjmp jump buffer */
 jmp_buf jb;
@@ -240,9 +236,9 @@ I gc() {
 /* push x on the stack to protect it from being recycled, returns pointer to cell pair (e.g. to update the value) */
 L *push(L x) {
   cell[--sp] = x;                               /* we must save x on the stack so it won't get GC'ed */
-  if (hp > (sp-1) << 3 || ALWAYS_GC) {          /* if insufficient stack space is available, then GC */
+  if (hp > (sp-1) << 2 || ALWAYS_GC) {          /* if insufficient stack space is available, then GC */
     gc();                                       /* GC */
-    if (hp > (sp-1) << 3)                       /* GC did not free up heap space to enlarge the stack */
+    if (hp > (sp-1) << 2)                       /* GC did not free up heap space to enlarge the stack */
       err(6);
   }
   return &cell[sp];
@@ -265,9 +261,9 @@ void unwind(I i) {
 /* allocate n+1 bytes on the heap, returns heap offset of the allocated space */
 I alloc(I n) {
   I i;
-  if (hp+Z+n+1 > (sp-1) << 3 || ALWAYS_GC) {    /* if insufficient heap space is available, then GC */
+  if (hp+Z+n+1 > (sp-1) << 2 || ALWAYS_GC) {    /* if insufficient heap space is available, then GC */
     gc();                                       /* GC */
-    if (hp+Z+n+1 > (sp-1) << 3)                 /* GC did not free up sufficient heap space */
+    if (hp+Z+n+1 > (sp-1) << 2)                 /* GC did not free up sufficient heap space */
       err(6);
   }
   *(I*)(A+hp) = n+1;                            /* store the size n+1 (data size + 1) in the size field */
@@ -327,13 +323,13 @@ L macro(L v, L x) {
   return box(MACR, ord(cons(v, x)));
 }
 
-/* return the car of a cons/closure/macro pair; CAR(p) provides direct memory access */
+/* return the car of a cons/closure/macro pair; unguarded CAR(p) provides direct memory access */
 #define CAR(p) cell[ord(p)]
 L car(L p) {
   return (T(p) & ~(CONS^MACR)) == CONS ? CAR(p) : err(1);
 }
 
-/* return the cdr of a cons/closure/macro pair; CDR(p) provides direct memory access */
+/* return the cdr of a cons/closure/macro pair; unguarded CDR(p) provides direct memory access */
 #define CDR(p) cell[ord(p)+1]
 L cdr(L p) {
   return (T(p) & ~(CONS^MACR)) == CONS ? CDR(p) : err(1);
@@ -341,9 +337,9 @@ L cdr(L p) {
 
 /* look up a symbol in an environment, returns its value */
 L assoc(L v, L e) {
-  while (T(e) == CONS && !equ(v, car(car(e))))
-    e = cdr(e);
-  return T(e) == CONS ? cdr(car(e)) : T(v) == ATOM ? ERR(3, "unbound %s ", A+ord(v)) : err(3);
+  while (T(e) == CONS && !equ(v, car(CAR(e))))
+    e = CDR(e);
+  return T(e) == CONS ? cdr(CAR(e)) : T(v) == ATOM ? ERR(3, "unbound %s ", A+ord(v)) : err(3);
 }
 
 /* not(x) is nonzero if x is the Lisp () empty list */
@@ -353,7 +349,7 @@ I not(L x) {
 
 /* more(t) is nonzero if list t has more than one item */
 I more(L t) {
-  return !not(t) && !not(cdr(t));
+  return T(t) == CONS && T(CDR(t)) == CONS;
 }
 
 /*----------------------------------------------------------------------------*\
@@ -455,7 +451,7 @@ L list() {
     if (*buf == '.' && !buf[1]) {               /* parse list with dot pair ( <expr> ... <expr> . <expr> ) */
       *p = readlisp();                          /* read expression to replace the last nil at the end of the list */
       if (scan() != ')')
-        ERR(8, "expecing ) ");
+        ERR(8, "expecting ) ");
       break;
     }
     *p = cons(parse(), nil);                    /* add parsed expression to end of the list by replacing the last nil */
@@ -469,17 +465,25 @@ L tick() {
   L *p;
   if (*buf == ',')
     return readlisp();                          /* parse and return Lisp expression */
+  if (*buf == '\'') {
+    scan();
+    p = push(cons(tick(), nil));
+    *p = cons(cons(atom("quote"), cons(atom("quote"), nil)), *p);
+    return cons(atom("list"), pop());           /* translated '<expr> to (quote <expr>) in tick'ed form */
+  }
   if (*buf != '(')
     return cons(atom("quote"), cons(parse(), nil)); /* parse expression and return (quote <expr>) */
   p = push(cons(atom("list"), nil));
   while (scan() != ')') {
-    p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
     if (*buf == '.' && !buf[1]) {               /* tick list with dot pair ( <expr> ... <expr> . <expr> ) */
-      *p = readlisp();                          /* read expression to replace the last nil at the end of the list */
+      scan();
+      p = &CDR(CDR(*push(cons(atom("append"), cons(pop(), nil)))));
+      *p = cons(tick(), nil);                   /* `(x . xs) => (append (list (quote x)) (quote xs)) */
       if (scan() != ')')
-        ERR(8, "expecing ) ");
+        ERR(8, "expecting ) ");
       break;
     }
+    p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
     *p = cons(tick(), nil);                     /* add ticked expression to end of the list by replacing the last nil */
   }
   return pop();                                 /* return (list <expr> ... <expr>) */
@@ -508,8 +512,8 @@ L parse() {
 L eval(L, L);
 L evlis(L t, L e) {
   L *p = push(nil);                             /* push the new list to protect it from getting GC'ed */
-  for (; T(t) == CONS; t = cdr(t)) {            /* for each expression in list t */
-    *p = cons(eval(car(t), e), nil);            /* evaluate it and add it to the end of the list replacing last nil */
+  for (; T(t) == CONS; t = CDR(t)) {            /* for each expression in list t */
+    *p = cons(eval(CAR(t), e), nil);            /* evaluate it and add it to the end of the list replacing last nil */
     p = &CDR(*p);                               /* p points to the cdr nil to replace it with the rest of the list */
   }
   if (T(t) == ATOM)                             /* if the list t ends in a symbol */
@@ -568,14 +572,14 @@ L f_div(L t, L *_) {
 
 L f_int(L t, L *_) {
   L n = car(t);
-  return n < 1e6 && n > -1e6 ? (int32_t)n : n;
+  return n < 1e7 && n > -1e7 ? (int32_t)n : n;
 }
 
 L f_lt(L t, L *_) {
   L x = car(t), y = car(cdr(t));
   return (T(x) == T(y) && (T(x) & ~(ATOM^STRG)) == ATOM ? strcmp(A+ord(x), A+ord(y)) < 0 :
       x == x && y == y ? x < y : /* x == x is false when x is NaN i.e. a tagged Lisp expression */
-      *(I*)&x < *(I*)&y) ? tru : nil;
+      T(x) < T(y) || (T(x) == T(y) && ord(x) < ord(y))) ? tru : nil;
 }
 
 L f_eq(L t, L *_) {
@@ -606,8 +610,8 @@ L f_list(L t, L *_) {
 }
 
 L f_begin(L t, L *e) {
-  for (; more(t); t = cdr(t))
-    eval(car(t), *e);
+  for (; more(t); t = CDR(t))
+    eval(CAR(t), *e);
   return T(t) == NIL ? nil : car(t);
 }
 
@@ -639,10 +643,10 @@ L f_macro(L t, L *_) {
 
 L f_define(L t, L *e) {
   L x = eval(car(cdr(t)), *e), v = car(t), d = *e;
-  while (T(d) == CONS && !equ(v, car(car(d))))
-    d = cdr(d);
-  if (T(d) == CONS)
-    CDR(car(d)) = x;
+  while (T(d) == CONS && !equ(v, car(CAR(d))))
+    d = CDR(d);
+  if (T(d) == CONS && T(CAR(d)) == CONS)
+    CDR(CAR(d)) = x;
   else
     env = pair(v, x, env);
   return v;
@@ -658,39 +662,39 @@ L f_env(L _, L *e) {
 
 L f_let(L t, L *e) {
   L d = *e;
-  for (; more(t); t = cdr(t))
-    *e = pair(car(car(t)), eval(f_begin(cdr(car(t)), &d), d), *e);
+  for (; more(t); t = CDR(t))
+    *e = pair(car(CAR(t)), eval(f_begin(cdr(CAR(t)), &d), d), *e);
   return T(t) == NIL ? nil : car(t);
 }
 
 L f_leta(L t, L *e) {
-  for (; more(t); t = cdr(t))
-    *e = pair(car(car(t)), eval(f_begin(cdr(car(t)), e), *e), *e);
+  for (; more(t); t = CDR(t))
+    *e = pair(car(CAR(t)), eval(f_begin(cdr(CAR(t)), e), *e), *e);
   return T(t) == NIL ? nil : car(t);
 }
 
 L f_letrec(L t, L *e) {
   L s, *p;
-  for (s = t, p = push(nil); more(s); s = cdr(s), p = &CDR(*p))
-    *p = pair(car(car(s)), nil, nil);
-  for (*p = *e, s = *e = pop(); more(t); s = cdr(s), t = cdr(t))
-    CDR(car(s)) = eval(f_begin(cdr(car(t)), e), *e);
+  for (s = t, p = push(nil); more(s); s = CDR(s), p = &CDR(*p))
+    *p = pair(car(CAR(s)), nil, nil);
+  for (*p = *e, s = *e = pop(); more(t); s = CDR(s), t = CDR(t))
+    CDR(CAR(s)) = eval(f_begin(cdr(CAR(t)), e), *e);
   return T(t) == NIL ? nil : car(t);
 }
 
 L f_letreca(L t, L *e) {
-  for (; more(t); t = cdr(t)) {
-    *e = pair(car(car(t)), nil, *e);
-    CDR(car(*e)) = eval(f_begin(cdr(car(t)), e), *e);
+  for (; more(t); t = CDR(t)) {
+    *e = pair(car(CAR(t)), nil, *e);
+    CDR(CAR(*e)) = eval(f_begin(cdr(CAR(t)), e), *e);
   }
   return T(t) == NIL ? nil : car(t);
 }
 
 L f_setq(L t, L *e) {
   L x = eval(car(cdr(t)), *e), v = car(t), d = *e;
-  while (T(d) == CONS && !equ(v, car(car(d))))
-    d = cdr(d);
-  return T(d) == CONS ? CDR(car(d)) = x : T(v) == ATOM ? ERR(3, "unbound %s ", A+ord(v)) : err(3);
+  while (T(d) == CONS && !equ(v, car(CAR(d))))
+    d = CDR(d);
+  return T(d) == CONS && T(CAR(d)) == CONS ? CDR(CAR(d)) = x : T(v) == ATOM ? ERR(3, "unbound %s ", A+ord(v)) : err(3);
 }
 
 L f_setcar(L t, L *_) {
@@ -744,9 +748,9 @@ L f_string(L t, L *_) {
     if ((T(x) & ~(ATOM^STRG)) == ATOM)
       i += strlen(A+ord(x));
     else if (T(x) == CONS)
-      for (; T(x) == CONS; x = cdr(x))
+      for (; T(x) == CONS; x = CDR(x))
         ++i;
-    else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
+    else if (x == x)                            /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(buf, sizeof(buf), FLOAT, x);
   }
   i = j = alloc(i);
@@ -755,9 +759,9 @@ L f_string(L t, L *_) {
     if ((T(x) & ~(ATOM^STRG)) == ATOM)
       i += strlen(strcpy(A+i, A+ord(x)));
     else if (T(x) == CONS)
-      for (; T(x) == CONS; x = cdr(x))
-        *(A+i++) = car(x);
-    else if (x == x) /* false when x is NaN i.e. a tagged Lisp expression */
+      for (; T(x) == CONS; x = CDR(x))
+        *(A+i++) = CAR(x);
+    else if (x == x)                            /* false when x is NaN i.e. a tagged Lisp expression */
       i += snprintf(A+i, sizeof(buf), FLOAT, x);
   }
   return box(STRG, j);
@@ -770,8 +774,8 @@ L f_load(L t, L *e) {
 
 L f_trace(L t, L *e) {
   I savedtr = tr;
-  tr = T(t) == NIL ? 1 : car(t);
-  return more(t) ? t = eval(car(cdr(t)), *e), tr = savedtr, t : tr;
+  tr = T(t) == CONS ? CAR(t) : 1;
+  return more(t) ? t = eval(CAR(CDR(t)), *e), tr = savedtr, t : tr;
 }
 
 L f_catch(L t, L *e) {
@@ -876,8 +880,8 @@ L eval(L x, L e) {
     }
     if (T(x) != CONS)                           /* if x is not a list or pair, then return x itself */
       break;
-    *f = eval(car(x), e);                       /* the function/primitive is at the head of the list */
-    x = cdr(x);                                 /* ... and its actual arguments are the rest of the list */
+    *f = eval(CAR(x), e);                       /* the function/primitive is at the head of the list */
+    x = CDR(x);                                 /* ... and its actual arguments are the rest of the list */
     if (T(*f) == PRIM) {                        /* if f is a primitive, then apply it to the actual arguments x */
       I i = ord(*f);
       if (!(prim[i].m & SPECIAL))               /* if the primitive is NORMAL mode, */
@@ -889,21 +893,21 @@ L eval(L x, L e) {
         break;                                  /* else break to return value x */
     }
     else if (T(*f) == CLOS) {                   /* if f is a closure, then */
-      *d = cdr(*f);                             /* construct an extended local environment d from f's static scope */
+      *d = CDR(*f);                             /* construct an extended local environment d from f's static scope */
       if (T(*d) == NIL)                         /* if f's static scope is nil, then use global env as static scope */
         *d = env;
-      v = car(car(*f));                         /* get the parameters v of closure f */
+      v = car(CAR(*f));                         /* get the parameters v of closure f */
       while (T(v) == CONS && T(x) == CONS) {    /* bind parameters v to argument values x to extend the local scope d */
-        *d = pair(car(v), eval(car(x), e), *d); /* add new binding to the front of d */
-        v = cdr(v);
-        x = cdr(x);
+        *d = pair(CAR(v), eval(CAR(x), e), *d); /* add new binding to the front of d */
+        v = CDR(v);
+        x = CDR(x);
       }
       if (T(v) == CONS) {                       /* continue binding v if x is after a dot (... . x) by evaluating x */
         x = *y = eval(x, e);                    /* evaluate x and save its value y to protect it from getting GC'ed */
         while (T(v) == CONS && T(x) == CONS) {
-          *d = pair(car(v), car(x), *d);        /* add new binding to the front of d */
-          v = cdr(v);
-          x = cdr(x);
+          *d = pair(CAR(v), CAR(x), *d);        /* add new binding to the front of d */
+          v = CDR(v);
+          x = CDR(x);
         }
         if (T(v) == CONS)                       /* error if insufficient actual arguments x are provided */
           err(5);
@@ -914,22 +918,22 @@ L eval(L x, L e) {
         x = eval(x, e);
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
-      x = *y = cdr(car(*f));                    /* tail recursion optimization: evaluate the body x of closure f next */
+      x = *y = cdr(CAR(*f));                    /* tail recursion optimization: evaluate the body x of closure f next */
       e = *z = *d;                              /* the new environment e is d to evaluate x, put in *z to protect */
     }
     else if (T(*f) == MACR) {                   /* else if f is a macro, then */
       *d = env;                                 /* construct an extended local environment d from global env */
-      v = car(*f);                              /* get the parameters v of macro f */
+      v = CAR(*f);                              /* get the parameters v of macro f */
       while (T(v) == CONS && T(x) == CONS) {    /* bind parameters v to arguments x to extend the local scope d */
-        *d = pair(car(v), car(x), *d);
-        v = cdr(v);
-        x = cdr(x);
+        *d = pair(CAR(v), CAR(x), *d);
+        v = CDR(v);
+        x = CDR(x);
       }
       if (T(v) == CONS)                         /* error if insufficient actual arguments x are provided */
         err(5);
       if (T(v) != NIL)                          /* if last parameter v is after a dot (... . v) then bind it to x */
         *d = pair(v, x, *d);
-      x = *y = eval(cdr(*f), *d);               /* evaluated body of the macro to evaluate next, put in *y to protect */
+      x = *y = eval(CDR(*f), *d);               /* evaluated body of the macro to evaluate next, put in *y to protect */
     }
     else
       err(4);                                   /* if f is not a closure or macro, then we cannot apply it */
@@ -950,8 +954,8 @@ L eval(L x, L e) {
 void printlist(L t) {
   putc('(', out);
   while (1) {
-    print(car(t));
-    t = cdr(t);
+    print(CAR(t));
+    t = CDR(t);
     if (T(t) == NIL)
       break;
     if (T(t) != CONS) {
