@@ -95,13 +95,13 @@ enum { PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe
 /* T(x):     returns the tag bits of a NaN-boxed double x
    box(t,i): returns a new NaN-boxed double with tag t and ordinal i
    ord(x):   returns the ordinal of the NaN-boxed double x
-   num(n):   convert or check number n (does nothing, e.g. could check for NaN)
-   equ(x,y): returns nonzero if x equals y */
+   equ(x,y): returns nonzero if x equals y
+   num(n):   convert or check number n (does nothing, e.g. could check for NaN) */
 static I T(L x)        { union { L x; uint64_t i; } u = {x}; return u.i >> 48; }
 static L box(I t, I i) { union { uint64_t i; L x; } u = {(uint64_t)t << 48 | i}; return u.x; }
 static I ord(L x)      { union { L x; uint64_t i; } u = {x}; return u.i; } /* narrow return to 32 bit to remove the tag */
-static L num(L n)      { return n; }                    /* could check for a valid number return n == n ? n : err(5); */
 static I equ(L x, L y) { union { L x; uint64_t i; } u = {x}, v = {y}; return u.i == v.i; }
+static L num(L n)      { return n; }                    /* could check for a valid number return n == n ? n : err(5); */
 
 /*----------------------------------------------------------------------------*\
  |      ERROR HANDLING AND ERROR MESSAGES                                     |
@@ -909,7 +909,7 @@ inline static const struct {
   {"catch",    &This::f_catch,   SPECIAL},          /* (catch <expr>) => <value-of-expr> if no except. else (ERR . n) */
   {"throw",    &This::f_throw,   NORMAL},           /* (throw n) -- raise exception error code n (integer != 0) */
   {"quit",     &This::f_quit,    NORMAL},           /* (quit) -- bye! */
-  {0}
+  {0,NULL,0}
 };
 
 /*----------------------------------------------------------------------------*\

@@ -478,6 +478,38 @@ The free cells in the pool form a linked list `fp` with the list ending as zero.
     I fp = 0, hp = H, sp = N, tr = 0;
 ```
 
+### NaN-boxing
+
+Lisp expressions and values are of type `L` which is `double`.  Lisp expressions and values are held by the local variables of C functions and are stored in the memory cell array `cell[N]` that contains the cons pair pool, the heap, and the stack.  Doubles are tagged using so-called "NaN boxing".  NaN-boxed tags distinguish primitives `PRIM`, atom symbols `ATOM`, strings `STRG`, cons pairs of lists `CONS`, lambda closures `CLOS`, macros `MACR`, and the empty list `NIL`.  The tagged doubles include an unsigned integer ordinal field of up to 48 bits (we only use 32 bits).  Ordinal fields are used depending on the type of Lisp expression, e.g. the ordinal `ord(p)` of a `CONS` value `p` refers to the car `cell[ord(p)]` and cdr `cell[ord(p)+1]` and the `ord(v)` of an `ATOM` or `STRG` value `v` refers to the heap's `char*` string address `A+ord(v)`.
+
+```c
+#define I uint32_t
+#define L double
+
+/* primitive, atom, string, cons, closure, macro and nil tags for NaN boxing (reserve 0x7ff8 for nan) */
+enum { PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe, MACR = 0x7fff, NIL = 0xffff };
+
+/* T(x):     returns the tag bits of a NaN-boxed double x
+   box(t,i): returns a new NaN-boxed double with tag t and ordinal i
+   ord(x):   returns the ordinal of the NaN-boxed double x
+   equ(x,y): returns nonzero if x equals y
+   num(n):   convert or check number n (does nothing, e.g. could check for NaN) */
+I T(L x)        { union { L x; uint64_t i; } u = {x}; return u.i >> 48; }
+L box(I t, I i) { union { uint64_t i; L x; } u = {(uint64_t)t << 48 | i}; return u.x; }
+I ord(L x)      { union { L x; uint64_t i; } u = {x}; return u.i; }     /* narrow return to 32 bit to remove the tag */
+I equ(L x, L y) { union { L x; uint64_t i; } u = {x}, v = {y}; return u.i == v.i; }
+L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
+```
+
+Unions are used for safe type punning in modern C.  For older legacy systems it is recommended to use the following alternatives that use pointer casting:
+
+```c
+   #define T(x)    *(uint64_t*)&x >> 48
+   L box(I t, I i) { L x; *(uint64_t*)&x = (uint64_t)t << 48 | i; return x; }
+   I ord(L x)      { return *(uint64_t*)&x; }                           /* narrow return to 32 bit to remove the tag */
+   I equ(L x, L y) { return *(uint64_t*)&x == *(uint64_t*)&y; }
+```
+
 ### Consing
 
 To construct a new cons pair `(x . y)` is easy, but we must guard against two potential problems.  First, what to do if the pool is already full?  Second, if it is full and we invoke garbage collection, how do we make sure we do not lose the unprotected `x` and `y` values when garbage collection recycles them?  The `x` and `y` values may be temporary lists for example.  A simple and safe approach is to assume that we have at least one cell pair free to construct `(x . y)`.  If there are no free cells left after that, we invoke garbage collection while protecting the pair `(x . y)` and its constituent `x` and `y`:

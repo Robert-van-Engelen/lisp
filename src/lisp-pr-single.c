@@ -70,13 +70,13 @@ enum { PRIM = 0x7f9, ATOM = 0x7fa, STRG = 0x7fb, CONS = 0x7fc, CLOS = 0x7fe, MAC
 /* T(x):     returns the tag bits of a NaN-boxed float x
    box(t,i): returns a new NaN-boxed float with tag t and 20 bits ordinal i
    ord(x):   returns the 20 bits ordinal of the NaN-boxed float x
-   num(n):   convert or check number n (does nothing, e.g. could check for NaN)
-   equ(x,y): returns nonzero if x equals y */
+   equ(x,y): returns nonzero if x equals y
+   num(n):   convert or check number n (does nothing, e.g. could check for NaN) */
 I T(L x)        { union { L x; uint32_t i; } u = {x}; return u.i >> 20; }
 L box(I t, I i) { union { uint32_t i; L x; } u = {(uint32_t)t << 20 | i}; return u.x; }
 I ord(L x)      { union { L x; uint32_t i; } u = {x}; return u.i & 0xfffff; }   /* remove the tag */
-L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
 I equ(L x, L y) { union { L x; uint32_t i; } u = {x}, v = {y}; return u.i == v.i; }
+L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
 
 /*----------------------------------------------------------------------------*\
  |      I/O BUFFERS AND ERROR MESSAGES                                         |

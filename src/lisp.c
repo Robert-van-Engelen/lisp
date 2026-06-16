@@ -19,7 +19,7 @@
 
 #ifdef HAVE_SIGNAL_H
 #include <signal.h>             /* to catch CTRL-C and continue the REPL */
-#define BREAK_ON  signal(SIGINT, (void(*)(int))err)
+#define BREAK_ON  signal(SIGINT, (void(*)(int))err)     /* this cast is safe! */
 #define BREAK_OFF signal(SIGINT, SIG_IGN)
 #else
 #define BREAK_ON  (void)0
@@ -70,13 +70,13 @@ enum { PRIM = 0x7ff9, ATOM = 0x7ffa, STRG = 0x7ffb, CONS = 0x7ffc, CLOS = 0x7ffe
 /* T(x):     returns the tag bits of a NaN-boxed double x
    box(t,i): returns a new NaN-boxed double with tag t and ordinal i
    ord(x):   returns the ordinal of the NaN-boxed double x
-   num(n):   convert or check number n (does nothing, e.g. could check for NaN)
-   equ(x,y): returns nonzero if x equals y */
+   equ(x,y): returns nonzero if x equals y
+   num(n):   convert or check number n (does nothing, e.g. could check for NaN) */
 I T(L x)        { union { L x; uint64_t i; } u = {x}; return u.i >> 48; }
 L box(I t, I i) { union { uint64_t i; L x; } u = {(uint64_t)t << 48 | i}; return u.x; }
 I ord(L x)      { union { L x; uint64_t i; } u = {x}; return u.i; }     /* narrow return to 32 bit to remove the tag */
-L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
 I equ(L x, L y) { union { L x; uint64_t i; } u = {x}, v = {y}; return u.i == v.i; }
+L num(L n)      { return n; }                           /* could check for a valid number return n == n ? n : err(5); */
 
 /*----------------------------------------------------------------------------*\
  |      I/O BUFFERS AND ERROR MESSAGES                                         |
