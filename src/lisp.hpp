@@ -58,7 +58,7 @@ Lisp() {
   for (I i = 0; prim[i].s; ++i)                 /* expand environment with primitives */
     env = pair(atom(prim[i].s), box(PRIM, i), env);
   fin = 0;                                      /* no open files */
-  see = '\n';                                   /* input line sentinel \n */
+  see = 0;                                      /* input line sentinel \n */
   ptr = "";                                     /* pointer to char in line, init to \0 end of line */
   line = NULL;                                  /* no line read */
   strcpy(ps, ">");                              /* prompt */
@@ -424,6 +424,11 @@ const char *ptr, *line;
 /* prompt string */
 char ps[20];
 
+/* return nonzero if we are looking at character c, ' ' means any white space */
+I seeing(char c) {
+  return c == ' ' ? see >= 0 && see <= c : (c == '\n' && !see) || see == c;;
+}
+
 /* return the character we see, advance to the next character */
 char get() {
   int c, look = see;
@@ -431,12 +436,12 @@ char get() {
     see = c = getc(in[fin-1]);                  /* read a character */
     if (c == EOF) {
       fclose(in[--fin]);                        /* if end of file, then close the file */
-      see = '\n';                               /* pretend we see a newline at eof */
+      see = 0;
     }
   }
   else {
 #ifdef HAVE_READLINE_H
-    if (see == '\n') {                          /* if looking at the end of the current readline line */
+    if (!see) {                                 /* if looking at the end of the current readline line */
       break_off();                              /* disable interrupt to prevent free() without final line = NULL */
       if (line)                                 /* free the old line that was malloc'ed by readline */
         free(const_cast<char*>(line));
@@ -447,26 +452,20 @@ char get() {
       add_history(line);                        /* make it part of the history */
       strcpy(ps, "?");                          /* change prompt to ? */
     }
-    if (!(see = *ptr++))                        /* look at the next character in the readline line */
-      see = '\n';                               /* but when it is \0, replace it with a newline \n */
+    see = *ptr++;                               /* look at the next character in the readline line */
 #else
-    if (see == '\n') {
+    if (seeing('\n')) {
       printf("%s", ps);
       strcpy(ps, "?");
     }
     if ((c = getchar()) == EOF) {
       freopen("/dev/tty", "r", stdin);
-      c = '\n';
+      c = 0;
     }
     see = c;
 #endif
   }
   return look;                                  /* return the previous character we were looking at */
-}
-
-/* return nonzero if we are looking at character c, ' ' means any white space */
-I seeing(char c) {
-  return c == ' ' ? see > 0 && see <= c : see == c;
 }
 
 /* tokenize into buf[], return first character of buf[] */
@@ -766,7 +765,7 @@ L f_setcdr(L t, L *_) {
 
 L f_read(L t, L *_) {
   L x; char c = see;
-  see = ' ';
+  see = 0;
   *ps = 0;
   x = read();
   see = c;
