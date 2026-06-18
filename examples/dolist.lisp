@@ -5,9 +5,20 @@
 
 (defmacro dolist (x . args)
     (list 'let*
-        (list (car x))
+        (list (car x) ())
         (list '_ (car (cdr x)))
         (list 'while '_
             (list 'setq (car x) (list 'car '_))
             (list 'setq '_ (list 'cdr '_))
             . args)))
+
+; Same, but using backquoting:
+;
+; (defmacro dolist (x . args)
+;     `(let*
+;         (,(car x) ())
+;         (_ ,(car (cdr x)))
+;         (while _
+;             (setq ,(car x) (car _))
+;             (setq _ (cdr _))
+;             . ,args)))
