@@ -10,3 +10,13 @@
                 (cons (cons (list 'eq? '_ (car (car t))) (cdr (car t))) (c (cdr t)))
                 (cons (cons #t ())()))))
         (list 'let* (list '_ x) (cons 'cond (c args)))))
+
+; Same, but using backquoting:
+;
+; (defmacro case (x . args)
+;     (letrec*
+;         (c (lambda (t)
+;             (if t
+;                 `(((eq? _ ,(car (car t))) ,(car (cdr (car t)))) . ,(c (cdr t)))
+;                 `((#t ())))))
+;         `(let* (_ ,x) (cond . ,(c args)))))
