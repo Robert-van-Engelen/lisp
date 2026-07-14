@@ -66,9 +66,9 @@
             t)))
 (define nthcdr
     (lambda (n t)
-        (if (eq? n 0)
-            t
-            (nthcdr (- n 1) (cdr t)))))
+        (if (< 0 n)
+            (nthcdr (- n 1) (cdr t))
+            t)))
 (define nth (lambda (n t) (car (nthcdr n t))))
 (define reverse-tr
     (lambda (r t)
